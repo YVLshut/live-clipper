@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+frontend/dist/
+build/
+dist/
+work/
+clips/
+manifest.json
+packaging/bin/
+packaging/Output/
+*.spec.bak

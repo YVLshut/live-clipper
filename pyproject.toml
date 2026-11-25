@@ -1,0 +1,31 @@
+[project]
+name = "liveclipper"
+version = "1.0.0"
+description = "Live Clipper - clipping automatique de lives (application de bureau)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlmodel>=0.0.22",
+    "anthropic>=1.0",
+    "faster-whisper>=1.1",
+    "numpy",
+    "yt-dlp",
+    "keyring>=25",
+    "httpx>=0.27",
+    "playwright>=1.47",
+    "huggingface_hub>=0.25",
+    "python-multipart",
+    "pywebview>=5.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "respx>=0.21", "pyinstaller>=6.10"]
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+[tool.pytest.ini_options]
+pythonpath = ["backend", "."]
+testpaths = ["tests"]
+markers = ["slow: tests qui lancent ffmpeg / Whisper"]
