@@ -95,3 +95,35 @@ time.sleep(6)
     else:
         os.kill(child_pid, 9)
         raise AssertionError("le moteur ne s'est pas arrêté après la fermeture de la fenêtre")
+
+
+def test_js_api_exposes_no_public_objects():
+    """Régression : pywebview parcourt les attributs publics de js_api à chaque page.
+    Une référence publique à la fenêtre (window.dom / window.native) figeait puis faisait planter l'app."""
+    launcher = _launcher()
+
+    class FakeWindow:
+        @property
+        def dom(self):
+            raise AssertionError("window.dom ne doit jamais être parcouru")
+
+        native = object()
+
+    api = launcher.JsApi()
+    api._window = FakeWindow()
+    public = [n for n in dir(api) if not n.startswith("_")]
+    assert public == ["pick_folder"]
+    # même parcours que pywebview (webview.util.inject_pywebview.get_functions)
+    import inspect
+    for name in public:
+        attr = getattr(api, name)
+        assert inspect.ismethod(attr)
+
+
+def test_crash_log_enabled(tmp_path):
+    launcher = _launcher()
+    launcher.enable_crash_log(tmp_path, "test")
+    import faulthandler
+    assert faulthandler.is_enabled()
+    assert "démarrage" in (tmp_path / "crash_test.log").read_text(encoding="utf-8")
+    faulthandler.disable()

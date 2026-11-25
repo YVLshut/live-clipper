@@ -5,8 +5,9 @@ par ffmpeg, API, file de jobs, WebSocket, OAuth et publication simulés, planifi
 vrai Chromium, exécutable PyInstaller Linux lancé de bout en bout). Les points ci-dessous demandent Windows,
 un GPU, un écran ou tes vrais comptes. Coche-les au fur et à mesure.
 
-Les journaux sont dans `%APPDATA%\LiveClipper\logs\liveclipper.log` (Paramètres → Système → Journaux).
-En cas de problème, envoie-moi ce fichier.
+Les journaux sont dans `%APPDATA%\LiveClipper\logs\` (Paramètres → Système → Journaux) :
+`liveclipper.log` (journal normal), `crash_fenetre.log` et `crash_moteur.log` (pile d'exécution si un processus
+plante). En cas de problème, envoie-moi ces fichiers.
 
 ---
 

@@ -57,14 +57,21 @@ def existing_instance(port: int) -> bool:
 
 
 class JsApi:
-    """Fonctions natives appelables depuis l'interface (window.pywebview.api)."""
+    """Fonctions natives appelables depuis l'interface (window.pywebview.api).
+
+    IMPORTANT : pywebview parcourt récursivement tous les attributs PUBLICS de cet objet à chaque
+    chargement de page. Une référence publique à la fenêtre lui faisait parcourir `window.dom`
+    (qui exécute du JavaScript en attendant la réponse sur le fil de l'interface -> « Ne répond pas »)
+    et `window.native` (objet .NET aux propriétés sans fin -> débordement de pile -> fermeture).
+    D'où l'attribut privé `_window` (les noms commençant par « _ » sont ignorés par pywebview).
+    """
 
     def __init__(self) -> None:
-        self.window = None
+        self._window = None
 
     def pick_folder(self, initial: str | None = None):
         import webview
-        res = self.window.create_file_dialog(webview.FOLDER_DIALOG, directory=initial or "")
+        res = self._window.create_file_dialog(webview.FOLDER_DIALOG, directory=initial or "")
         return res[0] if res else None
 
 
@@ -119,7 +126,7 @@ def start_engine_process(port: int, token: str):
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def wait_healthy(port: int, proc=None, timeout: float = 90) -> bool:
+def wait_healthy(port: int, proc=None, timeout: float = 300) -> bool:
     t0 = time.time()
     while time.time() - t0 < timeout:
         if proc is not None and proc.poll() is not None:
@@ -172,6 +179,22 @@ POLICY_MESSAGE = (
 )
 
 
+_crash_file = None
+
+
+def enable_crash_log(logs_dir: Path, role: str) -> None:
+    """Écrit la pile de tous les fils dans logs/crash_<rôle>.log si le processus plante (erreur native)."""
+    global _crash_file
+    import faulthandler
+    try:
+        _crash_file = open(Path(logs_dir) / f"crash_{role}.log", "a", encoding="utf-8")
+        _crash_file.write(f"\n=== démarrage {time.strftime('%Y-%m-%d %H:%M:%S')} (pid {os.getpid()}) ===\n")
+        _crash_file.flush()
+        faulthandler.enable(file=_crash_file, all_threads=True)
+    except OSError:
+        pass
+
+
 def blocked_by_policy(e: BaseException) -> bool:
     msg = str(e).lower()
     return any(k in msg for k in ("contrôle d", "controle d", "application control", "4551",
@@ -198,6 +221,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         raise
     setup_logging()
+    enable_crash_log(paths.logs_dir(), "moteur" if (args.server or args.headless) else "fenetre")
     paths.setup_dll_dirs()
     os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
     port = args.port or int(config.get("oauth_port") or 47615)
@@ -238,18 +262,39 @@ def main(argv: list[str] | None = None) -> int:
     window = webview.create_window("Live Clipper", html=LOADING_HTML, width=1440, height=920,
                                    min_size=(1100, 700), background_color="#0b0d12", js_api=api,
                                    text_select=True)
-    api.window = window
+    api._window = window
+
+    state = {"proc": proc, "closing": False}
+
+    def supervise():
+        """Si le moteur s'arrête alors que la fenêtre est ouverte, on le relance (l'interface se reconnecte seule)."""
+        restarts = 0
+        while not state["closing"]:
+            time.sleep(2)
+            p = state["proc"]
+            if p is None or p.poll() is None or state["closing"]:
+                continue
+            log.error("Le moteur s'est arrêté (code %s) : redémarrage (voir logs/crash_moteur.log).", p.returncode)
+            restarts += 1
+            if restarts > 5:
+                error_box("Le moteur de Live Clipper s'arrête sans cesse. Relance l'application et envoie "
+                          f"les journaux du dossier {paths.logs_dir()}.")
+                return
+            state["proc"] = start_engine_process(port, token)
 
     def boot():
         if wait_healthy(port, proc):
             log.info("Interface : %s", url)
             window.load_url(url)
+            if proc is not None:
+                threading.Thread(target=supervise, name="engine-supervisor", daemon=True).start()
             return
         code = proc.poll() if proc else None
         msg = (f"Le moteur de Live Clipper n'a pas pu démarrer (code {code}).\n\n"
                f"Journaux : {paths.logs_dir()}")
         if code == 2:
             msg = POLICY_MESSAGE.format(detail="composant bloqué au démarrage du moteur")
+        log.error("Démarrage du moteur impossible (code %s) : fermeture de la fenêtre.", code)
         error_box(msg)
         window.destroy()
 
@@ -260,7 +305,9 @@ def main(argv: list[str] | None = None) -> int:
                   f"Edge WebView2 puis relance l'application.\n\nDétail : {e}")
         return 1
     finally:
-        stop_engine_process(proc, port, token)
+        state["closing"] = True
+        log.info("Fenêtre fermée.")
+        stop_engine_process(state["proc"], port, token)
     return 0
 
 
