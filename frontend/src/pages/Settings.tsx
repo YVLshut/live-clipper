@@ -15,9 +15,9 @@ const MODEL_LABELS: Record<string, string> = {
   "large-v3-turbo": "large-v3-turbo — presque aussi précis, 3× plus rapide (1,6 Go)",
 };
 const AI_LABELS: Record<string, string> = {
-  "claude-sonnet-5-5": "Claude Sonnet 5.5 — recommandé (rapide, économique)",
-  "claude-opus-5-5": "Claude Opus 5.5 — le plus fin, plus cher",
-  "claude-haiku-5-5": "Claude Haiku 5.5 — très économique",
+  "claude-haiku-5-5": "Claude Haiku 5.5 — par défaut, très économique (~0,02 $ par live)",
+  "claude-sonnet-5-5": "Claude Sonnet 5.5 — meilleur repérage (~0,30 $ par live)",
+  "claude-opus-5-5": "Claude Opus 5.5 — le plus fin (~0,60 $ par live)",
 };
 
 export function SettingsPage() {

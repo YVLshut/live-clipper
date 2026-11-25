@@ -62,7 +62,7 @@ def ask_claude(text: str, cfg: dict, api_key: str, client=None) -> list[dict]:
     """Envoie un extrait de transcription à Claude, renvoie la liste de moments forts."""
     import anthropic
     client = client or anthropic.Anthropic(api_key=api_key, max_retries=3, timeout=600)
-    model = cfg.get("ai_model") or "claude-sonnet-5-5"
+    model = cfg.get("ai_model") or "claude-haiku-5-5"
     try:
         # Repli serveur en cas de refus (Sonnet/Opus) ; Haiku n'a pas de repli côté serveur.
         extra = {} if "haiku" in model else {"betas": ["server-side-fallback-2026-07-01"],

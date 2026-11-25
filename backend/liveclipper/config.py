@@ -24,7 +24,7 @@ DEFAULTS: dict[str, Any] = {
     "encoder": "libx264",          # libx264 | h264_nvenc
     "default_hashtags": ["#live", "#clip", "#fyp"],
     "output_dir": "",              # vide -> %APPDATA%\LiveClipper\clips
-    "ai_model": "claude-sonnet-5-5",
+    "ai_model": "claude-haiku-5-5",
     "ai_window_sec": 1500,
     "browser_channel": "msedge" if paths.IS_WINDOWS else "chromium",
     "meta_app_id": "",
@@ -34,7 +34,7 @@ DEFAULTS: dict[str, Any] = {
 }
 
 WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]
-AI_MODELS = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"]
+AI_MODELS = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"]
 ENCODERS = ["libx264", "h264_nvenc"]
 LAYOUTS = ["blur", "crop"]
 

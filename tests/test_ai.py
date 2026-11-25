@@ -46,3 +46,26 @@ def test_ask_claude_bad_key_message():
 
     with pytest.raises(highlights.AIError, match="Clé API Anthropic invalide"):
         highlights.ask_claude("x", CFG, "sk-bad", client=_client(handler))
+
+
+def test_haiku_has_no_server_fallback():
+    """Haiku 5.5 n'a pas de repli serveur : pas de paramètre fallbacks ni d'en-tête bêta."""
+    seen = {}
+
+    def handler(request: httpx2.Request):
+        body = json.loads(request.content)
+        seen["body"], seen["headers"] = body, request.headers
+        return httpx2.Response(200, json={
+            "id": "msg_1", "type": "message", "role": "assistant", "model": body["model"],
+            "content": [{"type": "text", "text": json.dumps({"clips": []})}],
+            "stop_reason": "end_turn", "stop_sequence": None,
+            "usage": {"input_tokens": 10, "output_tokens": 10}})
+
+    assert highlights.ask_claude("x", {"ai_model": "claude-haiku-5-5"}, "sk-test", client=_client(handler)) == []
+    assert seen["body"]["model"] == "claude-haiku-5-5" and "fallbacks" not in seen["body"]
+    assert "server-side-fallback" not in seen["headers"].get("anthropic-beta", "")
+
+
+def test_default_model_is_haiku(lc_home):
+    from liveclipper import config
+    assert config.get("ai_model") == "claude-haiku-5-5"

@@ -129,7 +129,7 @@ def test_anthropic():
     import anthropic
     try:
         anthropic.Anthropic(api_key=key, max_retries=1, timeout=20).models.retrieve(
-            config.get("ai_model") or "claude-sonnet-5-5")
+            config.get("ai_model") or "claude-haiku-5-5")
     except anthropic.AuthenticationError:
         raise UserError("Clé API invalide.")
     except anthropic.NotFoundError:
