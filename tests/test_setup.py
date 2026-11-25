@@ -60,3 +60,19 @@ def test_cuda_wheel_lookup():
                     assert f"-{prefix}" in url.rsplit("/", 1)[-1]
     except httpx.HTTPError:
         pytest.skip("PyPI injoignable")
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("model", ["tiny", "small", "medium", "large-v3", "large-v3-turbo"])
+def test_whisper_file_listing_follows_redirects(model):
+    """Les dépôts Hugging Face peuvent être renommés (ex. large-v3-turbo) : la liste doit suivre la redirection."""
+    import httpx
+    from liveclipper.setup import SetupTask, repo_for
+    try:
+        with httpx.Client(timeout=30, follow_redirects=True) as c:
+            files = SetupTask().whisper_files(c, repo_for(model))
+    except httpx.HTTPError as e:
+        pytest.skip(f"Hugging Face injoignable : {e}")
+    names = [n for n, _ in files]
+    assert "model.bin" in names and "config.json" in names
+    assert dict(files)["model.bin"] > 30_000_000

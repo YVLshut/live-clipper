@@ -152,7 +152,7 @@ class SetupTask:
         final = paths.models_dir() / model
         work = paths.models_dir() / f".{model}.download"
         work.mkdir(parents=True, exist_ok=True)
-        with httpx.Client(timeout=httpx.Timeout(60, connect=20)) as c:
+        with httpx.Client(timeout=httpx.Timeout(60, connect=20), follow_redirects=True) as c:
             files = self.whisper_files(c, repo)
             self._set(True, total_bytes=sum(s for _, s in files))
             for name, size in files:
@@ -189,7 +189,7 @@ class SetupTask:
         dest = paths.cuda_dir()
         tmpdir = dest / ".download"
         tmpdir.mkdir(parents=True, exist_ok=True)
-        with httpx.Client(timeout=httpx.Timeout(120, connect=20)) as c:
+        with httpx.Client(timeout=httpx.Timeout(120, connect=20), follow_redirects=True) as c:
             wheels = [(p, *self.wheel_url(c, p, pre)) for p, pre in CUDA_PACKAGES]
             self._set(True, total_bytes=sum(s for _, _, s in wheels))
             for pkg, url, _size in wheels:
