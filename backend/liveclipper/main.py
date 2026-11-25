@@ -99,6 +99,8 @@ def create_app(start_workers: bool = True) -> FastAPI:
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa(full_path: str):
+            if full_path.startswith(("api/", "oauth/", "ws")):
+                return JSONResponse({"detail": "Introuvable."}, status_code=404)
             f = (dist / full_path).resolve()
             if full_path and f.is_file() and f.is_relative_to(dist.resolve()):
                 return FileResponse(f)
