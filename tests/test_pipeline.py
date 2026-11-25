@@ -80,7 +80,9 @@ def test_full_pipeline_cpu(sample_video, lc_home, cfg):
         assert "IL NE S'ATTENDAIT PAS" in ass and "Dialogue: 0" in ass
 
     cap = caption.build_caption(hl[0], src, ["#live", "#gaming"])
-    assert "🎥 Source : Fichier local — file://" in cap
+    assert "🎥 Source : Fichier local\n" in cap and "file://" not in cap
+    assert caption.credit_line({"author": "Zerator", "url": "https://twitch.tv/videos/1"}) == \
+        "🎥 Source : Zerator — https://twitch.tv/videos/1"
     assert cap.endswith("#gaming #twitch #live")
 
 

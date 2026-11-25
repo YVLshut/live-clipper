@@ -3,8 +3,9 @@ from __future__ import annotations
 
 
 def credit_line(source: dict) -> str:
+    url = source.get("url") or ""
     return f"🎥 Source : {source.get('author') or 'inconnu'}" + (
-        f" — {source['url']}" if source.get("url") else "")
+        f" — {url}" if url.startswith(("http://", "https://")) else "")
 
 
 def build_caption(clip: dict, source: dict, default_hashtags: list[str] | None = None,

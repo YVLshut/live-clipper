@@ -1,5 +1,6 @@
 import { Loader2, X } from "lucide-react";
 import { useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { createPortal } from "react-dom";
 import { openExternal } from "../api";
 
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -178,7 +179,8 @@ export function Modal({ open, onClose, title, children, width = "max-w-2xl" }: {
     return () => window.removeEventListener("keydown", h);
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  // portail : un parent animé (transform) casserait le position: fixed
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm" onMouseDown={onClose}>
       <div
         className={cx("animate-fade-up flex max-h-full w-full flex-col overflow-hidden rounded-2xl border border-ink-600 bg-ink-850 shadow-2xl", width)}
@@ -192,7 +194,8 @@ export function Modal({ open, onClose, title, children, width = "max-w-2xl" }: {
         </div>
         <div className="overflow-y-auto p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
