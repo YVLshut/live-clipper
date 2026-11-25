@@ -21,11 +21,11 @@ log = logging.getLogger("liveclipper")
 def create_app(start_workers: bool = True) -> FastAPI:
     setup_logging()
     paths.setup_dll_dirs()
-    from .api import routes_accounts, routes_clips, routes_publications, routes_settings
+    from .api import routes_accounts, routes_clips, routes_publications, routes_settings, routes_setup
     from .services import job_queue, start_publishing, stop_publishing
 
     routers = [routes_clips.router, routes_settings.router, routes_accounts.router,
-               routes_accounts.oauth_router, routes_publications.router]
+               routes_accounts.oauth_router, routes_publications.router, routes_setup.router]
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

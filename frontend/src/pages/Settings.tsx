@@ -268,6 +268,18 @@ export function SettingsPage() {
       </Section>
 
       <Section title="Système">
+        <div className="mb-4">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={async () => {
+              await api.post("/api/setup/restart");
+              await useStore.getState().loadSettings();
+            }}
+          >
+            Relancer l'assistant de démarrage
+          </Button>
+        </div>
         <div className="grid gap-3 text-sm md:grid-cols-2">
           <Info label="Version">{sys?.version ?? "…"}</Info>
           <Info label="GPU">{sys ? sys.gpu.available ? <Badge color="green">{sys.gpu.detail}</Badge> : <Badge>{sys.gpu.detail}</Badge> : "…"}</Info>
