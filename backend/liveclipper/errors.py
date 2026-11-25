@@ -72,6 +72,12 @@ def humanize(exc: BaseException) -> str:
     if isinstance(exc, MemoryError):
         return "Mémoire insuffisante. Choisis un modèle Whisper plus petit dans les Paramètres."
     msg = str(exc) or exc.__class__.__name__
+    low = msg.lower()
+    if any(k in low for k in ("stratégie de contrôle d", "application control policy", "bloqué ce fichier",
+                              "blocked this file")):
+        return ("Windows a bloqué un composant de Live Clipper (Contrôle intelligent des applications) : "
+                "les bibliothèques de l'application ne sont pas signées. Désactive-le dans Sécurité Windows > "
+                "Contrôle des applications et du navigateur, puis redémarre Live Clipper. (" + msg[:160] + ")")
     if "CUDA" in msg or "cublas" in msg.lower() or "cudnn" in msg.lower():
         return ("Le GPU n'a pas pu être utilisé (" + msg[:200] + "). "
                 "Passe l'appareil sur « CPU » dans les Paramètres ou installe les bibliothèques CUDA.")

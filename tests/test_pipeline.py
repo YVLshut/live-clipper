@@ -112,3 +112,9 @@ def test_source_from_info_twitch():
                                      "webpage_url": "https://www.twitch.tv/videos/123"}, "x")
     assert src["platform"] == "Twitch" and src["date"] == "2026-11-01"
     assert src["author_url"] == "https://www.twitch.tv/zerator" and src["id"] == "twitch_v123"
+
+
+def test_humanize_policy_block():
+    from liveclipper.errors import humanize
+    msg = humanize(ImportError("DLL load failed while importing _core: Une stratégie de contrôle d’application a bloqué ce fichier."))
+    assert "Contrôle intelligent des applications" in msg and "Sécurité Windows" in msg
