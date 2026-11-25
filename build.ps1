@@ -147,6 +147,17 @@ Remove-Item Env:\LIVECLIPPER_HOME
 if (-not $ok) { Fail "Le moteur ne répond pas (voir $env:TEMP\lc-smoke-test\logs)." }
 Write-Host "Moteur OK" -ForegroundColor Green
 
+# Le navigateur du mode secours (Playwright + Edge) s'ouvre-t-il depuis l'exe ?
+Step "Test du navigateur du mode secours"
+$env:LIVECLIPPER_HOME = "$env:TEMP\lc-smoke-test"
+$st = "$env:TEMP\lc-selftest-browser.txt"
+Remove-Item $st -ErrorAction SilentlyContinue
+$p = Start-Process -FilePath "$Root\dist\LiveClipper\LiveClipper.exe" -ArgumentList "--selftest-browser", "`"$st`"" -PassThru -Wait
+Remove-Item Env:\LIVECLIPPER_HOME
+$res = if (Test-Path $st) { Get-Content $st -Raw } else { "aucun résultat" }
+Write-Host "Résultat : $res"
+if ($p.ExitCode -ne 0) { Fail "Le navigateur du mode secours ne s'ouvre pas depuis l'application : $res" }
+
 if ($SkipInstaller) { Write-Host "`nTerminé : dist\LiveClipper\LiveClipper.exe" -ForegroundColor Green; exit 0 }
 
 # ---------------------------------------------------------------- Inno Setup

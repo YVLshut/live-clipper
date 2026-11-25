@@ -208,7 +208,20 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--server", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--parent-pid", type=int, default=None, help=argparse.SUPPRESS)
     ap.add_argument("--port", type=int, default=None)
+    ap.add_argument("--selftest-browser", metavar="FICHIER", default=None, help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
+
+    if args.selftest_browser:   # build Windows : le navigateur du mode secours s'ouvre-t-il ?
+        import tempfile
+        out = Path(args.selftest_browser)
+        try:
+            from liveclipper.publish.browser import selftest
+            res = selftest(tempfile.mkdtemp(prefix="lc-selftest-"))
+            out.write_text(res, encoding="utf-8")
+            return 0
+        except Exception as e:  # noqa: BLE001
+            out.write_text(f"ECHEC : {e}", encoding="utf-8")
+            return 3
 
     try:
         from liveclipper import config, paths

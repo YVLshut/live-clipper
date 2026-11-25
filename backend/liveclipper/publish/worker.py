@@ -94,12 +94,19 @@ class PublishWorker:
 
     def _login(self, account_id: int) -> None:
         acc = accounts.get_account(account_id)
-        accounts.update_account(account_id, status_message="Fenêtre de connexion ouverte : connecte-toi…")
+        accounts.update_account(account_id, status_message="Ouverture du navigateur…")
         try:
-            ok = browser.login(self.browsers, account_id, acc.platform, lambda: account_id in self.login_done)
-        except PublishError as e:
-            accounts.update_account(account_id, status="disconnected", status_message=e.message)
-            bus.notify(e.message, "error")
+            ok = browser.login(
+                self.browsers, account_id, acc.platform, lambda: account_id in self.login_done,
+                on_open=lambda: accounts.update_account(
+                    account_id, status_message="Fenêtre de connexion ouverte : connecte-toi…"))
+        except Exception as e:  # toute erreur doit être visible dans l'interface
+            log.error("Connexion navigateur du compte %s : %s", account_id, traceback.format_exc())
+            msg = e.message if isinstance(e, PublishError) else humanize(e)
+            accounts.update_account(account_id, status="disconnected",
+                                    status_message=f"Le navigateur ne s'est pas ouvert : {msg}")
+            bus.notify(f"Le navigateur ne s'est pas ouvert : {msg}", "error", account_id=account_id)
+            self.browsers.close(account_id)
             return
         if ok:
             accounts.update_account(account_id, status="connected", status_message=None)

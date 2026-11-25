@@ -136,8 +136,8 @@ Utilise des lives de créateurs qui t'ont donné leur accord.
 
 ## 7. Comptes — mode navigateur (secours)
 
-- [ ] Ajoute un compte TikTok en mode **Navigateur** → **Se connecter** : une fenêtre **Microsoft Edge** séparée s'ouvre
-      sur la page de connexion. Connecte-toi toi-même, puis clique sur **J'ai terminé** dans l'app (ou ferme la fenêtre).
+- [ ] Ajoute un compte TikTok en mode **Navigateur** : une fenêtre **Microsoft Edge** séparée s'ouvre toute seule
+      (sinon **Se connecter**) sur la page de connexion. Si elle ne s'ouvre pas, la carte du compte affiche la raison. Connecte-toi toi-même, puis clique sur **J'ai terminé** dans l'app (ou ferme la fenêtre).
       Le compte passe à « Connecté ».
 - [ ] Le profil est séparé : `%APPDATA%\LiveClipper\profiles\<n>` ; ta session Edge habituelle n'est pas touchée.
 - [ ] Relance l'app puis **Vérifier** : toujours connecté (profil persistant).

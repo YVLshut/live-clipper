@@ -54,6 +54,8 @@ def create_account(body: AccountCreate):
         s.refresh(a)
     out = account_out(a)
     bus.publish("account.updated", out)
+    if a.mode == "browser":   # ouvre tout de suite la fenêtre de connexion
+        publish_worker.enqueue_login(a.id)
     return out
 
 

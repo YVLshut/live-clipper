@@ -26,6 +26,29 @@ LOGIN_URLS = {"instagram": "https://www.instagram.com/accounts/login/",
 SESSION_COOKIES = {"instagram": ("sessionid", "instagram.com"), "tiktok": ("sessionid", "tiktok.com")}
 
 
+def _browsers_path() -> str:
+    """Navigateurs téléchargés par Live Clipper (repli si Edge / Chrome sont introuvables)."""
+    d = paths.home() / "ms-playwright"
+    d.mkdir(parents=True, exist_ok=True)
+    return str(d)
+
+
+def install_chromium() -> None:
+    """Télécharge Chromium pour Playwright (environ 150 Mo) dans %APPDATA%\\LiveClipper\\ms-playwright."""
+    import os
+    import subprocess
+    from playwright._impl._driver import compute_driver_executable
+    from ..events import bus
+    from ..pipeline.utils import NO_WINDOW
+    bus.notify("Téléchargement d'un navigateur Chromium pour le mode navigateur (environ 150 Mo)…", "info")
+    env = {**os.environ, "PLAYWRIGHT_BROWSERS_PATH": _browsers_path()}
+    r = subprocess.run([*compute_driver_executable(), "install", "chromium"], env=env, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace", timeout=1800, **NO_WINDOW)
+    if r.returncode:
+        raise PublishError("Téléchargement du navigateur Chromium impossible : "
+                           + ((r.stderr or r.stdout or "").strip().splitlines() or ["erreur inconnue"])[-1])
+
+
 class Browsers:
     """Contextes persistants ouverts, par compte (vivent dans le thread du worker de publication)."""
 
@@ -35,11 +58,18 @@ class Browsers:
 
     def _playwright(self):
         if self._pw is None:
-            from playwright.sync_api import sync_playwright
-            self._pw = sync_playwright().start()
+            import os
+            os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", _browsers_path())
+            try:
+                from playwright.sync_api import sync_playwright
+                self._pw = sync_playwright().start()
+            except Exception as e:
+                log.exception("Démarrage de Playwright")
+                raise PublishError("Le pilote du navigateur (Playwright) n'a pas pu démarrer : "
+                                   f"{str(e).splitlines()[0][:300] if str(e) else type(e).__name__}") from e
         return self._pw
 
-    def open(self, account_id: int, headless: bool = False):
+    def open(self, account_id: int, headless: bool = False, profile_dir: str | None = None):
         ctx = self.contexts.get(account_id)
         if ctx is not None:
             try:
@@ -47,21 +77,31 @@ class Browsers:
                 return ctx
             except Exception:
                 self.contexts.pop(account_id, None)
-        channel = config.get("browser_channel") or None
-        kw = dict(user_data_dir=str(paths.profiles_dir() / str(account_id)), headless=headless,
+        kw = dict(user_data_dir=profile_dir or str(paths.profiles_dir() / str(account_id)), headless=headless,
                   viewport={"width": 1280, "height": 860}, locale="fr-FR")
         pw = self._playwright()
-        try:
-            ctx = pw.chromium.launch_persistent_context(channel=None if channel == "chromium" else channel, **kw)
-        except Exception as e:
-            if channel in (None, "chromium"):
-                raise PublishError(f"Impossible d'ouvrir le navigateur : {e}") from e
-            log.warning("Navigateur %s indisponible (%s) : essai avec Chromium", channel, e)
+        wanted = config.get("browser_channel") or "msedge"
+        # ordre d'essai : navigateur choisi, puis Edge, Chrome, et enfin Chromium (téléchargé si besoin)
+        channels = list(dict.fromkeys([wanted, "msedge", "chrome", "chromium"]))
+        errors = []
+        ctx = None
+        for ch in channels:
             try:
-                ctx = pw.chromium.launch_persistent_context(**kw)
-            except Exception as e2:
-                raise PublishError("Impossible d'ouvrir le navigateur. Choisis Microsoft Edge dans les "
-                                   f"Paramètres. ({e2})") from e2
+                ctx = pw.chromium.launch_persistent_context(channel=None if ch == "chromium" else ch, **kw)
+                break
+            except Exception as e:
+                msg = str(e).splitlines()[0] if str(e) else type(e).__name__
+                log.warning("Navigateur %s indisponible : %s", ch, msg)
+                errors.append(f"{ch} : {msg[:150]}")
+                if ch == "chromium" and ("Executable doesn't exist" in str(e) or "playwright install" in str(e)):
+                    try:
+                        install_chromium()
+                        ctx = pw.chromium.launch_persistent_context(**kw)
+                        break
+                    except Exception as e2:
+                        errors.append(f"chromium (téléchargé) : {str(e2).splitlines()[0][:150]}")
+        if ctx is None:
+            raise PublishError("Impossible d'ouvrir un navigateur (Edge, Chrome ou Chromium). " + " | ".join(errors))
         self.contexts[account_id] = ctx
         return ctx
 
@@ -98,11 +138,16 @@ def _page(ctx):
 
 
 def login(browsers: Browsers, account_id: int, platform: str, done: Callable[[], bool],
-          timeout: float = 900) -> bool:
+          timeout: float = 900, on_open: Callable[[], None] = lambda: None) -> bool:
     """Ouvre la page de connexion et attend que l'utilisateur ait fini (bouton « J'ai terminé »,
     fenêtre fermée, ou session détectée puis 5 s de calme). Renvoie True si connecté."""
     ctx = browsers.open(account_id, headless=False)
     page = _page(ctx)
+    try:
+        page.bring_to_front()
+    except Exception:
+        pass
+    on_open()
     try:
         page.goto(LOGIN_URLS[platform], wait_until="domcontentloaded", timeout=60000)
     except Exception as e:
@@ -247,3 +292,17 @@ def publish(browsers: Browsers, account_id: int, platform: str, video: Path, cap
         return (f"https://www.tiktok.com/@{username}" if platform == "tiktok"
                 else f"https://www.instagram.com/{username}/")
     return None
+
+
+def selftest(profile_dir: str) -> str:
+    """Vérifie que le navigateur du mode secours s'ouvre (utilisé par le build Windows)."""
+    b = Browsers()
+    try:
+        ctx = b.open(0, headless=True, profile_dir=profile_dir)
+        page = _page(ctx)
+        page.set_content("<title>ok</title>")
+        title = page.title()
+        name = ctx.browser.browser_type.name if getattr(ctx, "browser", None) else "chromium"
+        return f"OK ({name}, page « {title} »)"
+    finally:
+        b.shutdown()

@@ -340,7 +340,12 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
     try {
       const a = await api.post<Account>("/api/accounts", { platform, name: name || PLATFORM_NAMES[platform], mode });
       upsert(a);
-      toast("Compte ajouté : clique sur « Se connecter ».", "success");
+      toast(
+        mode === "browser"
+          ? "Compte ajouté : une fenêtre de navigateur s'ouvre (quelques secondes). Connecte-toi, puis clique sur « J'ai terminé »."
+          : "Compte ajouté : clique sur « Se connecter ».",
+        "success",
+      );
       onClose();
     } catch (e) {
       toast((e as Error).message, "error");
