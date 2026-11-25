@@ -257,6 +257,18 @@ def delete_clip(clip_id: str):
     return {"ok": True}
 
 
+@router.get("/clips/{clip_id}/thumb")
+def clip_thumb(clip_id: str):
+    from ..pipeline.render import make_thumb
+    with db.session() as s:
+        c = _clip_or_404(s, clip_id)
+    thumb = Path(c.file).parent / "thumb.jpg"
+    if not thumb.exists() or thumb.stat().st_mtime < Path(c.file).stat().st_mtime:
+        if not Path(c.file).exists() or make_thumb(Path(c.file), thumb, min(1.0, c.duration / 2)) is None:
+            raise UserError("Miniature indisponible.", status=404)
+    return FileResponse(thumb, media_type="image/jpeg", headers={"Cache-Control": "no-cache"})
+
+
 @router.get("/clips/{clip_id}/video")
 def clip_video(clip_id: str):
     with db.session() as s:

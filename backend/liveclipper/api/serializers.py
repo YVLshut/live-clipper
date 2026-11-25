@@ -23,6 +23,7 @@ def clip_out(c: Clip, source: Source | None, cfg: dict | None = None, pubs: list
     d["source"] = src
     d["final_caption"] = build_caption(d, src, cfg.get("default_hashtags") or [])
     d["video_url"] = f"/api/clips/{c.id}/video?v={c.version}"
+    d["thumb_url"] = f"/api/clips/{c.id}/thumb?v={c.version}"
     d["publications"] = [to_jsonable(p) for p in (pubs or [])]
     return d
 
@@ -45,7 +46,8 @@ def account_out(a: Account) -> dict:
 def publication_out(p: Publication, clip: Clip | None, account: Account | None) -> dict:
     d = to_jsonable(p)
     d["clip"] = ({"id": clip.id, "title": clip.title, "hook": clip.hook, "score": clip.score,
-                  "video_url": f"/api/clips/{clip.id}/video?v={clip.version}"} if clip else None)
+                  "video_url": f"/api/clips/{clip.id}/video?v={clip.version}",
+                  "thumb_url": f"/api/clips/{clip.id}/thumb?v={clip.version}"} if clip else None)
     d["account"] = ({"id": account.id, "name": account.name, "platform": account.platform,
                      "mode": account.mode, "avatar_url": account_out(account)["avatar_url"]} if account else None)
     d["screenshot_url"] = f"/api/publications/{p.id}/screenshot" if p.screenshot else None

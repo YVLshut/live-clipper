@@ -52,7 +52,7 @@ export interface Publication {
   attempts: number;
   auto: boolean;
   created_at: string;
-  clip?: { id: string; title: string; hook: string; score: number | null; video_url: string } | null;
+  clip?: { id: string; title: string; hook: string; score: number | null; video_url: string; thumb_url: string } | null;
   account?: { id: number; name: string; platform: Platform; mode: string; avatar_url: string | null } | null;
 }
 
@@ -77,6 +77,7 @@ export interface Clip {
   source: Source;
   final_caption: string;
   video_url: string;
+  thumb_url: string;
   publications: Publication[];
 }
 

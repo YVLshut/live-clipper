@@ -86,6 +86,8 @@ def test_full_job_with_websocket(client, sample_video, monkeypatch):
     assert "🎥 Source : Fichier local" in c["final_caption"] and "#wow" in c["final_caption"]
     v = client.get(c["video_url"])
     assert v.status_code == 200 and v.headers["content-type"] == "video/mp4"
+    t = client.get(c["thumb_url"])
+    assert t.status_code == 200 and t.headers["content-type"] == "image/jpeg" and t.content[:2] == b"\xff\xd8"
 
     # Modifier l'accroche relance le montage de ce clip seulement
     r = client.patch(f"/api/clips/{c['id']}", json={"hook": "Nouvelle accroche", "caption": "Légende 2"})

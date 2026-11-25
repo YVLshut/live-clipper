@@ -65,6 +65,17 @@ def create_app(start_workers: bool = True) -> FastAPI:
     def health():
         return {"app": "LiveClipper", "version": __version__}
 
+    @app.post("/api/shutdown", include_in_schema=False)
+    def shutdown(request: Request):
+        """Arrêt propre du moteur, demandé par la fenêtre (jeton secret transmis au lancement)."""
+        token = getattr(app.state, "shutdown_token", None)
+        if not token or request.headers.get("X-Shutdown-Token") != token:
+            return JSONResponse({"detail": "Interdit."}, status_code=403)
+        server = getattr(app.state, "uvicorn_server", None)
+        if server is not None:
+            server.should_exit = True
+        return {"ok": True}
+
     for r in routers:
         app.include_router(r)
 

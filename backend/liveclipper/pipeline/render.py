@@ -95,4 +95,16 @@ def render_clip(video: Path, segs: list[dict], start: float, end: float, hook: s
         encode("libx264")
     final = out_dir / "clip.mp4"
     tmp.replace(final)
+    make_thumb(final, out_dir / "thumb.jpg", min(1.0, dur / 2))
     return final
+
+
+def make_thumb(video: Path, out: Path, at: float = 1.0) -> Path | None:
+    """Miniature légère (affichée dans la galerie à la place de la vidéo tant qu'on ne la lit pas)."""
+    try:
+        run([tool("ffmpeg"), "-y", "-v", "error", "-ss", f"{at:.2f}", "-i", str(video), "-frames:v", "1",
+             "-vf", "scale=360:-2", "-q:v", "4", str(out)])
+        return out
+    except Exception as e:  # la miniature est facultative
+        log.warning("Miniature impossible pour %s : %s", video, e)
+        return None

@@ -452,7 +452,7 @@ function ClipCard({ clip }: { clip: Clip }) {
   return (
     <Card className={cx("animate-fade-up flex flex-col overflow-hidden", clip.status === "approved" && "ring-1 ring-emerald-500/40", clip.status === "rejected" && "opacity-60")}>
       <div className="relative flex justify-center bg-black">
-        <video key={clip.video_url} src={clip.video_url} controls preload="metadata" className="aspect-[9/16] max-h-[440px] w-auto bg-black" />
+        <video key={clip.video_url} src={clip.video_url} poster={clip.thumb_url} controls preload="none" className="aspect-[9/16] max-h-[440px] w-auto bg-black" />
         <div className="absolute top-2 left-2 flex gap-1.5">
           <ScoreBadge score={clip.score} />
           <Badge className="bg-black/60 tabular-nums">{fmtDuration(clip.duration)}</Badge>

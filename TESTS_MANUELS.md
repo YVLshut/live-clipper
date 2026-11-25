@@ -43,6 +43,10 @@ Get-WinEvent -LogName 'Microsoft-Windows-CodeIntegrity/Operational' -MaxEvents 3
 - [ ] Ferme la fenêtre : le processus `LiveClipper.exe` disparaît du Gestionnaire des tâches en quelques secondes.
 - [ ] Relance-la : les données sont toujours là.
 - [ ] Lance l'app deux fois de suite : la 2e fenêtre fonctionne aussi (même moteur), sans erreur.
+- [ ] Réactivité : pendant un clipping (surtout au chargement du modèle et pendant la transcription), la fenêtre
+      reste fluide (défilement, changement d'onglet) et n'affiche jamais « Ne répond pas ».
+      Dans le Gestionnaire des tâches, Live Clipper apparaît avec 2 processus `LiveClipper.exe` (fenêtre + moteur).
+- [ ] Ferme la fenêtre : les deux processus disparaissent en quelques secondes.
 - [ ] Un lien externe (ex. « console.anthropic.com » dans Paramètres) s'ouvre dans **ton navigateur habituel**.
 - [ ] Paramètres → Dossier de sortie → **Parcourir…** ouvre le sélecteur de dossier Windows.
 

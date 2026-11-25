@@ -110,7 +110,7 @@ function PubRow({ pub }: { pub: Publication }) {
   return (
     <Card className={cx("animate-fade-up flex items-center gap-4 p-3 pr-4", pub.status === "paused" && "ring-1 ring-amber-500/40")}>
       {pub.clip ? (
-        <video src={pub.clip.video_url} preload="metadata" muted className="aspect-[9/16] h-24 shrink-0 rounded-lg bg-black object-cover" />
+        <img src={pub.clip.thumb_url} alt="" loading="lazy" className="aspect-[9/16] h-24 shrink-0 rounded-lg bg-black object-cover" />
       ) : (
         <div className="aspect-[9/16] h-24 shrink-0 rounded-lg bg-ink-800" />
       )}
