@@ -21,6 +21,10 @@ log = logging.getLogger("liveclipper")
 def create_app(start_workers: bool = True) -> FastAPI:
     setup_logging()
     paths.setup_dll_dirs()
+    try:
+        paths.install_user_tools()
+    except OSError as e:
+        log.warning("Copie de yt-dlp impossible : %s", e)
     from .api import routes_accounts, routes_clips, routes_publications, routes_settings, routes_setup
     from .services import job_queue, start_publishing, stop_publishing
 

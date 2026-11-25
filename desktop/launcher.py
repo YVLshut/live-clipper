@@ -21,6 +21,13 @@ from pathlib import Path
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
+# Exe sans console (PyInstaller console=False) : stdout/stderr valent None et feraient planter
+# les bibliothèques qui écrivent dessus (barres tqdm, avertissements…).
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
 log = logging.getLogger("liveclipper.desktop")
 
 

@@ -196,3 +196,18 @@ def open_external(body: OpenBody):
         open_path(p)
         return {"ok": True}
     raise UserError("Rien à ouvrir.")
+
+
+@router.post("/system/update-ytdlp")
+def update_ytdlp():
+    """Met à jour yt-dlp (les plateformes changent souvent, une version récente évite les échecs)."""
+    exe = tool("yt-dlp")
+    try:
+        r = subprocess.run([exe, "-U"], capture_output=True, text=True, timeout=180, **NO_WINDOW)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise UserError(f"Mise à jour de yt-dlp impossible : {e}")
+    out = (r.stdout + r.stderr).strip()
+    if r.returncode != 0 or "error" in out.lower():
+        raise UserError("Mise à jour de yt-dlp impossible : " + (out.splitlines()[-1] if out else "erreur inconnue"))
+    return {"ok": True, "message": out.splitlines()[-1] if out else "yt-dlp est à jour.",
+            "version": _version([exe, "--version"])}

@@ -12,3 +12,5 @@ manifest.json
 packaging/bin/
 packaging/Output/
 *.spec.bak
+packaging/version_info.txt
+.venv-build/

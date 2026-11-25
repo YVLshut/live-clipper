@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from conftest import whisper_tiny_available
+from conftest import has_flite, whisper_tiny_available
 from liveclipper import config
 from liveclipper.pipeline import caption, download, highlights, peaks, render, transcribe
 from liveclipper.pipeline.utils import duration, tool
@@ -43,8 +43,8 @@ def test_download_local_and_peaks(sample_video, lc_home):
 
 
 def test_full_pipeline_cpu(sample_video, lc_home, cfg):
-    if not whisper_tiny_available():
-        pytest.skip("modèle Whisper tiny indisponible (pas de réseau)")
+    if not whisper_tiny_available() or not has_flite():
+        pytest.skip("modèle Whisper tiny ou synthèse vocale flite indisponible")
     d, src = download.download(str(sample_video), lc_home / "work")
     segs = transcribe.transcribe(d, cfg)
     text = " ".join(s["text"] for s in segs).lower()

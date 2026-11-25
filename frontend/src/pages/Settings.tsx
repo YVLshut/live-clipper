@@ -284,7 +284,23 @@ export function SettingsPage() {
           <Info label="Version">{sys?.version ?? "…"}</Info>
           <Info label="GPU">{sys ? sys.gpu.available ? <Badge color="green">{sys.gpu.detail}</Badge> : <Badge>{sys.gpu.detail}</Badge> : "…"}</Info>
           <Info label="ffmpeg">{sys?.ffmpeg ?? <span className="text-red-300">introuvable</span>}</Info>
-          <Info label="yt-dlp">{sys?.yt_dlp ?? <span className="text-red-300">introuvable</span>}</Info>
+          <Info label="yt-dlp">
+            {sys?.yt_dlp ?? <span className="text-red-300">introuvable</span>}
+            <button
+              className="ml-3 text-xs text-brand-400 hover:underline cursor-pointer"
+              onClick={async () => {
+                try {
+                  const r = await api.post<{ message: string; version: string }>("/api/system/update-ytdlp");
+                  toast(r.message, "success");
+                  setSys((s) => (s ? { ...s, yt_dlp: r.version } : s));
+                } catch (e) {
+                  toast((e as Error).message, "error");
+                }
+              }}
+            >
+              Mettre à jour
+            </button>
+          </Info>
           <Info label="Données">
             <button className="text-brand-400 hover:underline cursor-pointer" onClick={() => openFolder(settings.data_dir)}>
               {settings.data_dir}

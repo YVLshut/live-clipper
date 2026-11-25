@@ -94,7 +94,7 @@ def bin_path(name: str) -> str:
     Renvoie le nom nu si rien n'est trouvé (l'erreur sera remontée à l'exécution).
     """
     exe = name + (".exe" if IS_WINDOWS else "")
-    candidates = [bundle_dir() / "bin" / exe, Path(sys.executable).parent / exe]
+    candidates = [home() / "bin" / exe, bundle_dir() / "bin" / exe, Path(sys.executable).parent / exe]
     if not FROZEN:
         candidates.append(bundle_dir() / "packaging" / "bin" / exe)
     for c in candidates:
@@ -114,3 +114,14 @@ def setup_dll_dirs() -> None:
             os.add_dll_directory(str(d))
         except OSError:
             pass
+
+
+def install_user_tools() -> None:
+    """Copie yt-dlp embarqué dans %APPDATA%\\LiveClipper\\bin pour pouvoir le mettre à jour
+    (`yt-dlp -U`) sans droits administrateur : Program Files est en lecture seule."""
+    exe = "yt-dlp" + (".exe" if IS_WINDOWS else "")
+    src = bundle_dir() / "bin" / exe
+    dst = home() / "bin" / exe
+    if src.is_file() and (not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)

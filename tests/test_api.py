@@ -6,7 +6,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import whisper_tiny_available
+from conftest import has_flite, whisper_tiny_available
 
 
 @pytest.fixture
@@ -57,8 +57,8 @@ def test_parse_urls():
 
 
 def test_full_job_with_websocket(client, sample_video, monkeypatch):
-    if not whisper_tiny_available():
-        pytest.skip("Whisper tiny indisponible")
+    if not whisper_tiny_available() or not has_flite():
+        pytest.skip("Whisper tiny ou flite indisponible")
     from liveclipper.pipeline import highlights
     monkeypatch.setattr(highlights, "ask_claude", lambda text, cfg, key: [
         {"start": "00:00:02", "end": "00:00:10", "score": 9, "title": "Top", "hook": "Regarde ça",

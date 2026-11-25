@@ -30,11 +30,25 @@ def lc_home(tmp_path, monkeypatch):
     db.reset_engine()
 
 
+def has_flite() -> bool:
+    ff = shutil.which("ffmpeg")
+    if not ff:
+        return False
+    r = subprocess.run([ff, "-hide_banner", "-filters"], capture_output=True, text=True)
+    return " flite " in r.stdout
+
+
 def _make_sample(out: Path) -> Path:
     ff = shutil.which("ffmpeg")
     if not ff:
         pytest.skip("ffmpeg absent")
-    graph = (
+    if not has_flite():  # pas de synthèse vocale : tonalités seulement
+        graph = ("sine=f=220:r=16000,volume=0.3,atrim=0:12[s1];anullsrc=r=16000:cl=mono,atrim=0:4[q];"
+                 "sine=f=660:r=16000,volume=8,atrim=0:3[boom];sine=f=330:r=16000,volume=0.3,atrim=0:8[s2];"
+                 "[s1][q][boom][s2]concat=n=4:v=0:a=1,aformat=channel_layouts=stereo[a]")
+    else:
+        graph = None
+    graph = graph or (
         f"flite=text='{TEXT1}':voice=slt,aresample=16000[s1];"
         "anullsrc=r=16000:cl=mono,atrim=0:4[q];"
         "sine=f=660:r=16000,volume=8,atrim=0:3[boom];"
