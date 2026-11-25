@@ -203,4 +203,5 @@ export interface Stream {
   clips: number;
   channel: boolean;
   recorded: number;
+  progress: number | null;
 }

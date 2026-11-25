@@ -86,6 +86,8 @@ def stream_status(st: Stream) -> dict:
     processing = any(j.kind == "clip" and j.status in ACTIVE for j in jobs)
     channel = is_channel_url(st.url)
     last = max(jobs, key=lambda j: j.id) if jobs else None
+    current = next((j for j in sorted(jobs, key=lambda j: j.id) if j.kind == "clip" and j.status == "running"), None)
+    queued = sum(1 for j in jobs if j.kind == "clip" and j.status == "queued")
     if not st.enabled:
         state, label = "paused", "Clipping coupé"
     elif live_running:
@@ -98,7 +100,15 @@ def stream_status(st: Stream) -> dict:
         state, label = "failed", last.error or "Échec"
     else:
         state, label = "done", "Clippé"
+    if st.enabled and current is not None:
+        seg = (current.options or {}).get("segment")
+        prefix = f"Tranche {seg + 1} : " if seg is not None else ""
+        detail = f"{prefix}{current.message or 'Traitement'}"
+        label = f"{label} · {detail}" if state == "live" else detail
+    elif st.enabled and queued and state in ("live", "processing"):
+        label = f"{label} · {queued} tranche(s) en attente" if state == "live" else f"{queued} traitement(s) en attente"
     return {"state": state, "label": label, "clips": clips, "channel": channel,
+            "progress": round(current.progress, 3) if (st.enabled and current) else None,
             "recorded": sum(float((j.extra or {}).get("recorded", 0)) for j in jobs if j.kind == "live")}
 
 

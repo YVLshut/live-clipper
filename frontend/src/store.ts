@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { api } from "./api";
 import type { Account, Campaign, Clip, Job, Publication, Settings, Source, Stream, Toast } from "./types";
 
-type Tab = "clipping" | "accounts" | "publishing" | "settings";
+type Tab = "clipping" | "clips" | "accounts" | "publishing" | "settings";
 
 interface State {
   tab: Tab;

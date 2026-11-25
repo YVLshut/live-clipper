@@ -78,7 +78,7 @@ Get-WinEvent -LogName 'Microsoft-Windows-CodeIntegrity/Operational' -MaxEvents 3
 - [ ] Encodeur **h264_nvenc** (Paramètres → Montage) : un clip se monte nettement plus vite ; le fichier se lit bien.
       Si NVENC échoue, le log indique « repli sur libx264 » et le clip est quand même créé.
 
-## 5. Lives (Onglet 1)
+## 5. Lives et Clips (Onglets 1 et 2)
 
 Utilise des lives de créateurs qui t'ont donné leur accord.
 

@@ -1,4 +1,4 @@
-import { Radio, Send, Settings as Cog, Users } from "lucide-react";
+import { Clapperboard, Radio, Send, Settings as Cog, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
@@ -6,6 +6,7 @@ import { cx } from "./ui";
 
 const items = [
   { id: "clipping", label: "Lives", icon: Radio },
+  { id: "clips", label: "Clips", icon: Clapperboard },
   { id: "accounts", label: "Comptes", icon: Users },
   { id: "publishing", label: "Publier", icon: Send },
   { id: "settings", label: "Paramètres", icon: Cog },
@@ -20,7 +21,7 @@ export function Sidebar() {
   const pending = useStore((s) => s.clips.filter((c) => c.status === "pending").length);
   const scheduled = useStore((s) => s.publications.filter((p) => p.status === "scheduled" || p.status === "paused").length);
   const reconnect = useStore((s) => s.accounts.filter((a) => a.status !== "connected").length);
-  const badges: Record<string, number> = { clipping: running || pending, publishing: scheduled, accounts: reconnect };
+  const badges: Record<string, number> = { clipping: running, clips: pending, publishing: scheduled, accounts: reconnect };
   const [version, setVersion] = useState("");
   useEffect(() => {
     if (connected) api.get<{ version: string }>("/api/health").then((h) => setVersion(h.version)).catch(() => undefined);
