@@ -176,16 +176,28 @@ function NewJobForm() {
 // ------------------------------------------------------------------ « Mes lives » (œil)
 function StreamsSection() {
   const streams = useStore((s) => s.streams);
-  if (!streams.length) return null;
   const on = streams.filter((x) => x.enabled).length;
   return (
     <section>
-      <SectionTitle title="Mes lives" subtitle={`${on} live${on > 1 ? "s" : ""} clippé${on > 1 ? "s" : ""} sur ${streams.length}. L'œil coupe ou réactive le clipping d'un live.`} />
-      <Card className="divide-y divide-ink-700 overflow-hidden">
-        {streams.map((st) => (
-          <StreamRow key={st.id} stream={st} />
-        ))}
-      </Card>
+      <SectionTitle
+        title="Mes lives"
+        subtitle={
+          streams.length
+            ? `${on} live${on > 1 ? "s" : ""} clippé${on > 1 ? "s" : ""} sur ${streams.length}. L'œil coupe ou réactive le clipping d'un live.`
+            : "Les lives que tu ajoutes apparaissent ici. L'œil permet de couper ou de réactiver le clipping de chacun."
+        }
+      />
+      {streams.length ? (
+        <Card className="divide-y divide-ink-700 overflow-hidden">
+          {streams.map((st) => (
+            <StreamRow key={st.id} stream={st} />
+          ))}
+        </Card>
+      ) : (
+        <Empty icon={<Eye className="size-6" />} title="Aucun live ajouté">
+          Colle un lien de live ou de chaîne dans le champ ci-dessus puis clique sur « Ajouter ».
+        </Empty>
+      )}
     </section>
   );
 }

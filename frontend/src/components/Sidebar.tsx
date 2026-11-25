@@ -1,4 +1,6 @@
 import { Radio, Send, Settings as Cog, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "../api";
 import { useStore } from "../store";
 import { cx } from "./ui";
 
@@ -19,6 +21,10 @@ export function Sidebar() {
   const scheduled = useStore((s) => s.publications.filter((p) => p.status === "scheduled" || p.status === "paused").length);
   const reconnect = useStore((s) => s.accounts.filter((a) => a.status !== "connected").length);
   const badges: Record<string, number> = { clipping: running || pending, publishing: scheduled, accounts: reconnect };
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    if (connected) api.get<{ version: string }>("/api/health").then((h) => setVersion(h.version)).catch(() => undefined);
+  }, [connected]);
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-ink-700 bg-ink-950/60">
@@ -56,6 +62,7 @@ export function Sidebar() {
           <span className={cx("size-2 rounded-full", connected ? "bg-emerald-400 shadow-[0_0_8px] shadow-emerald-400/60" : "bg-red-400 animate-pulse")} />
           {connected ? "Moteur connecté" : "Connexion au moteur…"}
         </div>
+        {version && <div className="mt-1 pl-4 text-[11px] text-ink-500">Version {version}</div>}
       </div>
     </aside>
   );

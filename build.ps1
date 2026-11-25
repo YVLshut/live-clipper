@@ -33,6 +33,9 @@ if (-not $Version) {
     $Version = if ($m) { $m.Matches[0].Groups[1].Value } else { "1.0.0" }
 }
 Write-Host "Live Clipper $Version" -ForegroundColor Cyan
+# version affichée dans l'application (en bas à gauche) : chaque build a son propre numéro
+$init = "$Root\backend\liveclipper\__init__.py"
+(Get-Content $init -Raw) -replace '__version__ = "[^"]*"', "__version__ = `"$Version`"" | Set-Content -Encoding UTF8 -NoNewline $init
 
 # ---------------------------------------------------------------- Python
 Step "Environnement Python"

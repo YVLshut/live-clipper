@@ -71,8 +71,9 @@ jobs:
         run: |
           if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") }
           else {
-            $m = Select-String -Path pyproject.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
-            $v = $m.Matches[0].Groups[1].Value
+            # build hors tag : 1.0.<numéro du build>, pour distinguer chaque version installée
+            $m = Select-String -Path pyproject.toml -Pattern '^version\s*=\s*"(\d+)\.(\d+)' | Select-Object -First 1
+            $v = "$($m.Matches[0].Groups[1].Value).$($m.Matches[0].Groups[2].Value).${{ github.run_number }}"
           }
           "version=$v" >> $env:GITHUB_OUTPUT
       - name: Build (interface + PyInstaller + ffmpeg/yt-dlp + Inno Setup)
