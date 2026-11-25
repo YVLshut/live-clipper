@@ -1,42 +1,63 @@
 # Live Clipper
 
-Lien de live -> repérage des moments forts -> clips 9:16 sous-titrés -> publication TikTok / Instagram
-depuis ton propre Chrome, avec l'auteur et la source crédités dans chaque légende.
+Application de bureau Windows pour clipper automatiquement des lives :
+**lien de live → repérage des moments forts par l'IA → clips 9:16 sous-titrés → publication Instagram / TikTok**,
+avec l'auteur et la source crédités dans chaque légende.
 
-## Installation (Windows, une seule fois)
-1. Python 3.11+ et **ffmpeg** dans le PATH (`winget install Gyan.FFmpeg`)
-2. `pip install -r requirements.txt`
-3. GPU NVIDIA pour Whisper : `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`
-   (sinon, dans config.json : `"device": "cpu", "compute_type": "int8"`, plus lent)
-4. Claude Code installé (`claude` dans le PATH) : c'est lui qui repère les moments forts.
+## Installation
 
-## Chrome pour la publication
-Chrome refuse le pilotage sur ton profil principal, donc on utilise un profil dédié :
-```
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\chrome-clipper"
-```
-La première fois, connecte-toi à TikTok et Instagram dans cette fenêtre. Les connexions sont gardées pour la suite.
-Garde cette fenêtre ouverte quand tu lances `post`.
+Télécharge `LiveClipper-Setup.exe` (onglet **Releases** du dépôt, ou artefact du workflow **Actions → Build Windows**)
+et lance-le. Au premier démarrage, un assistant télécharge le modèle de transcription Whisper (et, si tu as une carte
+NVIDIA, les bibliothèques GPU), puis te demande ta clé API Anthropic.
 
-## Utilisation
-```
-python clipper.py clip "https://www.twitch.tv/videos/123456"       # télécharge, transcrit, repère, monte
-python clipper.py clip URL --section 01:00:00-03:00:00 --max-clips 8 --layout crop
-python clipper.py list                                              # liste des clips + score + statut
-python clipper.py approve <id> <id>      (ou --all)
-python clipper.py post                                              # prépare les posts, TU cliques sur Publier
-python clipper.py post --publish --platform tiktok --limit 2        # publie automatiquement
-```
-Les clips se trouvent dans `clips/<id>/clip.mp4`. Tout est noté dans `manifest.json`
-(source, auteur, horodatage, légende, statut de publication).
+Toutes les données (base, clips, profils de comptes, modèles, logs) sont dans `%APPDATA%\LiveClipper`.
+Les clés et jetons sont dans le Gestionnaire d'identification Windows.
 
-## Layouts
-- `blur` (par défaut) : la vidéo entière au centre, fond flou. Idéal pour les streams avec facecam + jeu.
-- `crop` : recadrage plein écran au centre. Idéal pour les lives "talk" en face caméra.
+## Fonctionnalités
+
+**Lives**
+- Un ou plusieurs liens Twitch, YouTube ou Kick, en direct ou terminés. Un live en direct est enregistré par
+  tranches de 30 min, clippées au fur et à mesure. Chaque lien devient un job suivi
+  en direct : téléchargement (yt-dlp) → transcription (faster-whisper, GPU NVIDIA ou CPU int8) → repérage IA
+  (Claude, à partir de la transcription horodatée et des pics de volume) → montage ffmpeg 9:16 (fond flou ou recadrage,
+  sous-titres karaoké, accroche).
+- Pour chaque clip : score /10, titre, accroche, légende, hashtags. L'accroche est modifiable : seul ce clip est remonté.
+- La source est enregistrée (auteur, chaîne, live, titre, plateforme, date) et ajoutée à chaque légende :
+  « 🎥 Source : auteur — lien ».
+
+**Comptes**
+- Plusieurs comptes Instagram et TikTok, avec nom, avatar et statut de connexion.
+- API officielles : Instagram Graph API (Reels, compte pro relié à une Page Facebook) et TikTok Content Posting API,
+  connexion OAuth, jetons rafraîchis automatiquement. Un guide intégré explique comment créer tes apps développeur.
+- Mode de secours « navigateur » : un profil Edge/Chromium séparé par compte, où tu te connectes toi-même.
+  **Aucun contournement de captcha ou de vérification** : la publication est mise en pause et tu es prévenu.
+- Règles par compte : publication automatique (désactivée par défaut), approbation manuelle obligatoire par défaut,
+  score minimal, posts max par jour, plages horaires, délai aléatoire entre deux posts.
+
+**Publier**
+- Clique sur 10, 50 ou 100 clips : chaque compte coché publie ce nombre de clips, 1 par heure, automatiquement
+  (les meilleurs d'abord, différents d'un compte à l'autre tant que possible). Une fenêtre montre l'avancée
+  compte par compte.
+- File et calendrier des posts programmés, statut (en attente, publié + lien, échec + raison, pause), capture d'écran
+  et bouton Réessayer en cas d'échec.
+
+## Pour les développeurs
+
+- Reconstruire l'installeur : [BUILD.md](BUILD.md) (`build.ps1` ou GitHub Actions).
+- Points à vérifier sur un vrai PC Windows : [TESTS_MANUELS.md](TESTS_MANUELS.md).
+- CLI (même base que l'application) :
+
+```bash
+python clipper.py clip "https://www.twitch.tv/videos/123456" --section 01:00:00-01:30:00 --max-clips 5
+```
+
+```bash
+python clipper.py list
+```
 
 ## À savoir
-- Les sélecteurs TikTok/Instagram changent régulièrement. En cas d'erreur, une capture `erreur_<plateforme>.png`
-  est enregistrée : demande à Claude Code de corriger `post_tiktok` / `post_instagram`.
-- Publier via un navigateur automatisé est contraire aux conditions d'utilisation des deux plateformes.
-  Le mode par défaut (préparer, puis cliquer toi-même) et les délais entre posts limitent le risque, sans l'annuler.
+
+- Publier via un navigateur automatisé (mode secours) est contraire aux conditions d'utilisation d'Instagram et de
+  TikTok. Préfère les API officielles ; les délais entre posts limitent le risque sans l'annuler.
+- Tant que ton app TikTok n'a pas passé l'audit de TikTok, les vidéos publiées via l'API sont privées.
 - Ne clippe que des créateurs qui t'ont donné leur accord : le crédit en légende ne suffit pas en cas de réclamation.
