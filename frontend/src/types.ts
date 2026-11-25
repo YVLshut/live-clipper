@@ -167,12 +167,18 @@ export interface CampaignAccount {
   paused: number;
   failed: number;
   target: number;
+  blocked: boolean;
+  next_at: string | null;
+  last_published_at: string | null;
+  last_post_url: string | null;
+  last_error: string | null;
 }
 
 export interface Campaign {
   id: number;
   count: number;
   account_ids: number[];
+  interval_minutes: number;
   status: "active" | "done" | "cancelled";
   created_at: string;
   finished_at: string | null;

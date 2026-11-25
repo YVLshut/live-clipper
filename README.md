@@ -35,8 +35,9 @@ Les clés et jetons sont dans le Gestionnaire d'identification Windows.
   score minimal, posts max par jour, plages horaires, délai aléatoire entre deux posts.
 
 **Publier**
-- Choisis 10, 50 ou 100 clips par compte : les meilleurs clips sont publiés automatiquement, différents d'un
-  compte à l'autre tant que possible, au rythme réglé sur chaque compte.
+- Clique sur 10, 50 ou 100 clips : chaque compte coché publie ce nombre de clips, 1 par heure, automatiquement
+  (les meilleurs d'abord, différents d'un compte à l'autre tant que possible). Une fenêtre montre l'avancée
+  compte par compte.
 - File et calendrier des posts programmés, statut (en attente, publié + lien, échec + raison, pause), capture d'écran
   et bouton Réessayer en cas d'échec.
 

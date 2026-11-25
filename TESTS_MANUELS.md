@@ -137,10 +137,11 @@ Utilise des lives de créateurs qui t'ont donné leur accord.
 
 ## 8. Publier (Onglet 3)
 
-- [ ] Choisis **10**, **50** ou **100** clips, coche des comptes, clique sur « Publier N clips sur X comptes ».
-      La campagne apparaît avec une barre de progression et un compteur par compte (publiés / prévus).
+- [ ] Coche des comptes puis clique sur **10**, **50** ou **100** : une fenêtre de suivi s'ouvre et montre, pour
+      chaque compte, le nombre de clips postés, l'heure du prochain clip et le lien du dernier post.
+- [ ] Rythme : 1 clip par heure et par compte (à quelques minutes près), jamais plusieurs d'un coup.
+- [ ] Ferme la fenêtre de suivi : la publication continue ; clique sur la campagne pour la rouvrir.
 - [ ] Les clips programmés sont différents d'un compte à l'autre tant qu'il y en a assez, puis réutilisés.
-- [ ] Le rythme suit les règles de chaque compte (posts/jour, plages horaires, délai aléatoire).
 - [ ] Ferme l'app quelques heures puis rouvre-la : les posts en retard ne partent pas tous d'un coup, ils sont
       réétalés selon les règles du compte.
 - [ ] « Arrêter » une campagne annule ses posts encore programmés.

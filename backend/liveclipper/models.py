@@ -118,6 +118,7 @@ class Campaign(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     count: int                                   # clips à publier PAR compte
     account_ids: list = Field(default_factory=list, sa_column=Column(JSON))
+    interval_minutes: Optional[int] = 60         # un clip toutes les N minutes, par compte
     status: str = "active"                       # active | done | cancelled
     created_at: datetime = Field(default_factory=now)
     finished_at: Optional[datetime] = None

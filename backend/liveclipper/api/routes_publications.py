@@ -185,15 +185,28 @@ def campaign_out(c: Campaign, accounts: dict[int, Account]) -> dict:
     from ..publish.scheduler import campaign_counts
     d = to_jsonable(c)
     rows = []
+    with db.session() as s:
+        pubs = s.exec(select(Publication).where(Publication.campaign_id == c.id)).all()
     for aid in c.account_ids or []:
         acc = accounts.get(aid)
         counts = campaign_counts(c.id, aid)
-        rows.append({"account_id": aid, "name": acc.name if acc else "Compte supprimé",
+        mine = [p for p in pubs if p.account_id == aid]
+        nxt = min((p.scheduled_at for p in mine if p.status == "scheduled"), default=None)
+        done = sorted((p for p in mine if p.status == "published"), key=lambda p: p.published_at or p.scheduled_at)
+        last = done[-1] if done else None
+        err = next((p.error for p in sorted(mine, key=lambda p: p.id, reverse=True)
+                    if p.status in ("failed", "paused")), None)
+        from ..publish.scheduler import MAX_CONSECUTIVE_FAILURES, consecutive_failures
+        blocked = consecutive_failures(c.id, aid) >= MAX_CONSECUTIVE_FAILURES
+        rows.append({"account_id": aid, "name": acc.name if acc else "Compte supprimé", "blocked": blocked,
                      "platform": acc.platform if acc else None,
                      "connected": bool(acc and acc.status == "connected"),
-                     "max_per_day": acc.max_per_day if acc else None, **counts, "target": c.count})
+                     "max_per_day": acc.max_per_day if acc else None, **counts, "target": c.count,
+                     "next_at": to_jsonable(nxt), "last_published_at": to_jsonable(last.published_at) if last else None,
+                     "last_post_url": last.post_url if last else None, "last_error": err})
     d["accounts"] = rows
     total = c.count * max(1, len(rows))
+    d["interval_minutes"] = c.interval_minutes or 60
     d["published_total"] = sum(r["published"] for r in rows)
     d["progress"] = round(d["published_total"] / total, 4) if rows else 0
     return d
@@ -220,6 +233,7 @@ def campaign_stock():
 class CampaignCreate(BaseModel):
     count: int
     account_ids: list[int]
+    interval_minutes: int = 60
 
 
 @router.post("/campaigns")
@@ -233,7 +247,10 @@ def create_campaign(body: CampaignCreate):
         missing = [i for i in body.account_ids if i not in accs]
         if missing:
             raise UserError("Compte introuvable.", status=404)
-        c = Campaign(count=body.count, account_ids=list(dict.fromkeys(body.account_ids)))
+        if not 15 <= body.interval_minutes <= 24 * 60:
+            raise UserError("Intervalle entre deux clips : entre 15 minutes et 24 heures.")
+        c = Campaign(count=body.count, account_ids=list(dict.fromkeys(body.account_ids)),
+                     interval_minutes=body.interval_minutes)
         s.add(c)
         s.commit()
         s.refresh(c)

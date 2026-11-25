@@ -137,7 +137,15 @@ def _acc(name, **kw):
     return a
 
 
-def test_campaign_distinct_clips_when_possible(lc_home):
+def _publish_all(at: datetime):
+    with db.session() as s:
+        for p in s.exec(__import__("sqlmodel").select(Publication).where(Publication.status == "scheduled")).all():
+            p.status, p.published_at = "published", at
+            s.add(p)
+        s.commit()
+
+
+def test_campaign_one_clip_per_hour_distinct_when_possible(lc_home):
     for i, sc in enumerate([9, 8, 7]):
         _clip(f"c{i}", sc)
     _clip("rej", 10, "rejected")
@@ -147,45 +155,52 @@ def test_campaign_distinct_clips_when_possible(lc_home):
         s.add(camp)
         s.commit()
         s.refresh(camp)
-    now = datetime(2026, 11, 25, 9, 0, tzinfo=PARIS)
-    pubs = scheduler.plan_campaigns(now, random.Random(0))
-    got = {}
-    for p in pubs:
-        got.setdefault(p.account_id, []).append(p.clip_id)
-    assert got[a.id] == ["c0", "c1"]                     # meilleurs clips, validation automatique
-    assert got[b.id][0] == "c2"                          # d'abord un clip encore inutilisé
-    assert len(got[b.id]) == 2 and got[b.id][1] in ("c0", "c1")   # puis réutilisation faute de stock
-    assert "rej" not in sum(got.values(), [])           # jamais un clip rejeté
-    assert all(p.campaign_id == camp.id for p in pubs)
-    assert scheduler.plan_campaigns(now, random.Random(0)) == []   # pas de doublon
-    # fin de campagne quand tout est publié
-    with db.session() as s:
-        for p in s.exec(__import__("sqlmodel").select(Publication)).all():
-            p.status = "published"
-            s.add(p)
-        s.commit()
-    scheduler.plan_campaigns(now)
+    t0 = datetime(2026, 11, 25, 9, 0, tzinfo=timezone.utc)
+    pubs = scheduler.plan_campaigns(t0, random.Random(0))
+    got = {p.account_id: p.clip_id for p in pubs}
+    assert got == {a.id: "c0", b.id: "c1"}          # 1 seul post à la fois, clips différents
+    assert all(p.scheduled_at == t0 for p in pubs)   # premier post tout de suite
+    assert scheduler.plan_campaigns(t0, random.Random(0)) == []   # rien tant que le post n'est pas parti
+    _publish_all(t0)
+    pubs = scheduler.plan_campaigns(t0 + timedelta(minutes=1), random.Random(0))
+    got = {p.account_id: p for p in pubs}
+    assert got[a.id].clip_id == "c2"                 # clip encore inutilisé ailleurs
+    assert got[b.id].clip_id == "c0"                 # stock épuisé : réutilisation
+    for p in pubs:                                    # 1 heure (+ 0-5 min) après le post précédent
+        assert timedelta(hours=1) <= p.scheduled_at - t0 <= timedelta(hours=1, minutes=5)
+    assert "rej" not in [p.clip_id for p in pubs]
+    _publish_all(t0 + timedelta(hours=1))
+    scheduler.plan_campaigns(t0 + timedelta(hours=1, minutes=1))
     with db.session() as s:
         assert s.get(Campaign, camp.id).status == "done"
 
 
-def test_campaign_respects_daily_quota(lc_home):
+def test_campaign_stops_retrying_after_repeated_failures(lc_home):
     for i in range(6):
         _clip(f"c{i}", 9 - i)
     a = _acc("A")
     with db.session() as s:
-        s.exec(__import__("sqlmodel").select(Account)).first().max_per_day = 2
-        acc = s.get(Account, a.id)
-        acc.max_per_day = 2
-        s.add(acc)
-        s.add(Campaign(count=5, account_ids=[a.id]))
+        camp = Campaign(count=10, account_ids=[a.id])
+        s.add(camp)
         s.commit()
-    now = datetime(2026, 11, 25, 9, 0, tzinfo=PARIS)
-    pubs = scheduler.plan_campaigns(now, random.Random(0), horizon_hours=48)
-    days = [p.scheduled_at.astimezone(PARIS).date() for p in pubs]
-    # horizon de 48 h depuis 9 h : 25/11 (2), 26/11 (2), 27/11 avant 9 h (1) ; jamais plus de 2 par jour
-    assert len(pubs) == 5 and max(days.count(d) for d in set(days)) == 2
-    assert all(p.scheduled_at.astimezone(PARIS) <= now + timedelta(hours=48) for p in pubs)
+        s.refresh(camp)
+    t = datetime(2026, 11, 25, 9, 0, tzinfo=timezone.utc)
+    for i in range(3):
+        pubs = scheduler.plan_campaigns(t, random.Random(0))
+        assert len(pubs) == 1
+        with db.session() as s:
+            p = s.get(Publication, pubs[0].id)
+            p.status, p.error = "failed", "Erreur TikTok"
+            s.add(p)
+            s.commit()
+        t = pubs[0].scheduled_at + timedelta(minutes=1)
+        if i < 2:   # après un échec, on attend quand même l'intervalle d'une heure
+            nxt = scheduler.plan_campaigns(t, random.Random(0))
+            assert nxt and nxt[0].scheduled_at >= pubs[0].scheduled_at + timedelta(hours=1)
+            with db.session() as s:
+                s.delete(s.get(Publication, nxt[0].id))
+                s.commit()
+    assert scheduler.plan_campaigns(t + timedelta(hours=5)) == []   # 3 échecs d'affilée : en pause
 
 
 def test_overdue_posts_are_respaced(lc_home):
@@ -225,7 +240,7 @@ def test_campaign_api(lc_home):
         assert r["count"] == 50 and "non connectés" in r["warning"]
         lst = client.get("/api/campaigns").json()
         row = [x for x in lst[0]["accounts"] if x["account_id"] == a.id][0]
-        assert row["target"] == 50 and row["scheduled"] == 1     # 1 seul clip en stock pour l'instant
+        assert row["target"] == 50 and row["scheduled"] == 1 and row["next_at"]   # 1 post à la fois
         assert client.get("/api/campaigns/stock").json() == {"clips": 1, "unused": 0}
         assert client.post(f"/api/campaigns/{r['id']}/cancel").json()["ok"]
         assert client.get("/api/campaigns").json()[0]["status"] == "cancelled"

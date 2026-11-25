@@ -143,16 +143,46 @@ def campaign_candidates(account: Account) -> list[Clip]:
     return sorted(clips, key=lambda c: (usage.get(c.id, 0), -(c.score or 0), c.created_at))
 
 
-def plan_campaigns(current: datetime | None = None, rng: random.Random | None = None,
-                   horizon_hours: int = 48) -> list[Publication]:
-    """Pour chaque campagne active et chaque compte : programme les prochains clips selon les règles
-    du compte (plages, quota/jour, délai aléatoire), jusqu'à atteindre le nombre demandé."""
-    current = (current or datetime.now(timezone.utc)).astimezone()
+JITTER_MINUTES = 5   # petite variation aléatoire autour de l'intervalle (évite un rythme de robot)
+
+
+MAX_CONSECUTIVE_FAILURES = 3
+
+
+def last_post_time(account_id: int) -> datetime | None:
+    """Heure du dernier post de ce compte (publié, prévu, ou tentative en échec), toutes campagnes
+    confondues : un échec compte aussi, pour ne pas réessayer en boucle sans attendre l'intervalle."""
+    with db.session() as s:
+        pubs = s.exec(select(Publication).where(Publication.account_id == account_id,
+                                                Publication.status.in_(ACTIVE + ("failed",)))).all()
+    times = [p.published_at or p.scheduled_at for p in pubs]
+    return max(times) if times else None
+
+
+def consecutive_failures(campaign_id: int, account_id: int) -> int:
+    with db.session() as s:
+        pubs = s.exec(select(Publication).where(Publication.campaign_id == campaign_id,
+                                                Publication.account_id == account_id)
+                      .order_by(Publication.id.desc())).all()
+    n = 0
+    for p in pubs:
+        if p.status != "failed":
+            break
+        n += 1
+    return n
+
+
+def plan_campaigns(current: datetime | None = None, rng: random.Random | None = None) -> list[Publication]:
+    """Pour chaque campagne active et chaque compte : programme le PROCHAIN clip seulement,
+    un intervalle (1 h par défaut) après le dernier post du compte, jusqu'au nombre demandé."""
+    rng = rng or random.Random()
+    current = (current or datetime.now(timezone.utc)).astimezone(timezone.utc)
     created: list[Publication] = []
     with db.session() as s:
         campaigns = s.exec(select(Campaign).where(Campaign.status == "active").order_by(Campaign.id)).all()
         accounts = {a.id: a for a in s.exec(select(Account)).all()}
     for camp in campaigns:
+        interval = timedelta(minutes=int(camp.interval_minutes or 60))
         all_done = True
         for aid in camp.account_ids or []:
             acc = accounts.get(aid)
@@ -161,24 +191,28 @@ def plan_campaigns(current: datetime | None = None, rng: random.Random | None = 
             counts = campaign_counts(camp.id, aid)
             if counts["published"] < camp.count:
                 all_done = False
-            remaining = camp.count - (counts["published"] + counts["scheduled"] + counts["running"] + counts["paused"])
-            if remaining <= 0 or acc.status != "connected":
-                continue
-            exist = existing_times(aid)
-            for clip in campaign_candidates(acc)[:remaining]:
-                slot = next_slot(current, acc.time_windows, exist, acc.max_per_day,
-                                 acc.delay_min_minutes, acc.delay_max_minutes, rng)
-                if slot is None or slot > current + timedelta(hours=horizon_hours):
-                    break
-                pub = Publication(clip_id=clip.id, account_id=aid, scheduled_at=slot.astimezone(timezone.utc),
-                                  auto=True, campaign_id=camp.id)
-                with db.session() as s:
-                    s.add(pub)
-                    s.commit()
-                    s.refresh(pub)
-                exist.append(slot)
-                created.append(pub)
-                bus.publish("publication.updated", pub)
+            pending = counts["scheduled"] + counts["running"] + counts["paused"]
+            remaining = camp.count - counts["published"] - pending
+            if remaining <= 0 or pending > 0 or acc.status != "connected":
+                continue          # un seul post en attente à la fois par compte
+            if consecutive_failures(camp.id, aid) >= MAX_CONSECUTIVE_FAILURES:
+                continue          # en pause : l'utilisateur doit regarder l'erreur (Réessayer relance)
+            candidates = campaign_candidates(acc)
+            if not candidates:
+                continue          # plus de clip disponible : on attendra les prochains lives
+            last = last_post_time(aid)
+            slot = current
+            if last is not None:
+                jitter = timedelta(minutes=rng.uniform(0, JITTER_MINUTES))
+                slot = max(current, last.astimezone(timezone.utc) + interval + jitter)
+            pub = Publication(clip_id=candidates[0].id, account_id=aid, scheduled_at=slot, auto=True,
+                              campaign_id=camp.id)
+            with db.session() as s:
+                s.add(pub)
+                s.commit()
+                s.refresh(pub)
+            created.append(pub)
+            bus.publish("publication.updated", pub)
         if all_done and camp.account_ids:
             with db.session() as s:
                 c = s.get(Campaign, camp.id)
@@ -186,7 +220,7 @@ def plan_campaigns(current: datetime | None = None, rng: random.Random | None = 
                 s.add(c)
                 s.commit()
             bus.publish("campaign.updated", {"id": camp.id})
-            bus.notify(f"✔ Campagne terminée : {camp.count} clips publiés sur chaque compte.", "success")
+            bus.notify(f"✔ Publication terminée : {camp.count} clips postés sur chaque compte.", "success")
     return created
 
 

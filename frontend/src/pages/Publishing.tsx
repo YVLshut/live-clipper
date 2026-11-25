@@ -1,5 +1,5 @@
 import { AlertTriangle, Ban, CalendarDays, Check, ChevronLeft, ChevronRight, ExternalLink, Image, List, Play, Rocket, RotateCcw, Send, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Badge, Button, Card, Empty, ExtLink, Input, Modal, PlatformIcon, ProgressBar, ScoreBadge, Segmented, cx, fmtDate } from "../components/ui";
 import { useStore } from "../store";
@@ -267,33 +267,41 @@ function Calendar({ pubs }: { pubs: Publication[] }) {
 // ------------------------------------------------------------------ campagnes « N clips par compte »
 const PRESETS = [10, 50, 100];
 
+function fmtHour(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const today = new Date().toDateString() === d.toDateString();
+  return today
+    ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 function NewCampaign() {
   const accounts = useStore((s) => s.accounts);
   const clips = useStore((s) => s.clips);
   const toast = useStore((s) => s.toast);
   const setTab = useStore((s) => s.setTab);
-  const [count, setCount] = useState<number>(10);
   const [custom, setCustom] = useState("");
   const [selected, setSelected] = useState<number[] | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<number | null>(null);
   const chosen = selected ?? accounts.filter((a) => a.status === "connected").map((a) => a.id);
-  const n = custom ? Math.max(0, parseInt(custom) || 0) : count;
   const stock = clips.filter((c) => c.status !== "rejected").length;
-  const needed = n * chosen.length;
-  const maxDays = Math.max(0, ...accounts.filter((a) => chosen.includes(a.id)).map((a) => Math.ceil(n / Math.max(1, a.max_per_day))));
 
-  async function start() {
-    setBusy(true);
+  async function start(n: number) {
+    if (!n || n < 1) return toast("Indique un nombre de clips.", "warning");
+    if (!chosen.length) return toast("Coche au moins un compte.", "warning");
+    setBusy(n);
     try {
-      const r = await api.post<Campaign & { warning?: string }>("/api/campaigns", { count: n, account_ids: chosen });
-      toast(`Publication lancée : ${n} clips sur ${chosen.length} compte(s)`, "success");
+      const r = await api.post<Campaign & { warning?: string }>("/api/campaigns", { count: n, account_ids: chosen, interval_minutes: 60 });
       if (r.warning) toast(r.warning, "warning");
-      useStore.getState().loadCampaigns();
+      await useStore.getState().loadCampaigns();
       useStore.getState().loadPublications();
+      setOpenId(r.id);
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -312,46 +320,35 @@ function NewCampaign() {
       <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-pink-500/10 blur-3xl" />
       <div className="relative grid gap-6 lg:grid-cols-[1fr_1fr]">
         <div>
-          <p className="mb-2 text-xs font-medium tracking-wide text-ink-300 uppercase">Nombre de clips par compte</p>
-          <div className="flex flex-wrap items-center gap-2">
+          <p className="mb-1 text-xs font-medium tracking-wide text-ink-300 uppercase">Clips à publier sur chaque compte</p>
+          <p className="mb-3 text-sm text-ink-400">1 clip toutes les heures par compte. Clique pour lancer et suivre l'avancée.</p>
+          <div className="flex flex-wrap items-center gap-3">
             {PRESETS.map((p) => (
               <button
                 key={p}
-                onClick={() => {
-                  setCount(p);
-                  setCustom("");
-                }}
-                className={cx(
-                  "h-14 w-24 rounded-xl border text-lg font-semibold transition cursor-pointer",
-                  !custom && count === p ? "border-brand-500 bg-brand-500/15 text-white" : "border-ink-600 text-ink-200 hover:border-ink-500",
-                )}
+                disabled={busy !== null}
+                onClick={() => start(p)}
+                className="group h-20 w-28 rounded-2xl border border-ink-600 bg-ink-900/60 transition hover:border-brand-500 hover:bg-brand-500/10 disabled:opacity-50 cursor-pointer"
               >
-                {p}
-                <span className="block text-[10px] font-normal text-ink-400">clips</span>
+                <span className="block text-2xl font-semibold text-white">{busy === p ? "…" : p}</span>
+                <span className="block text-[11px] text-ink-400 group-hover:text-ink-200">clips / compte</span>
               </button>
             ))}
-            <div className="w-28">
-              <Input type="number" min={1} max={1000} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Autre" className="h-14 text-center text-lg" />
+            <div className="flex h-20 items-center gap-2 rounded-2xl border border-dashed border-ink-600 px-3">
+              <div className="w-20">
+                <Input type="number" min={1} max={1000} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Autre" className="text-center" />
+              </div>
+              <Button size="sm" variant="secondary" icon={<Rocket className="size-3.5" />} disabled={busy !== null || !custom} onClick={() => start(parseInt(custom))}>
+                Go
+              </Button>
             </div>
           </div>
-          <div className="mt-5 space-y-1.5 text-sm text-ink-300">
-            <p>
-              <b className="text-ink-100">{n * chosen.length}</b> publications au total ({n} × {chosen.length} compte{chosen.length > 1 ? "s" : ""}).
-            </p>
-            {maxDays > 0 && <p>Durée estimée : environ <b className="text-ink-100">{maxDays} jour{maxDays > 1 ? "s" : ""}</b> selon le nombre de posts par jour de chaque compte.</p>}
-            <p>
-              Clips disponibles : <b className="text-ink-100">{stock}</b>
-              {needed > stock && (
-                <span className="text-amber-300">
-                  {" "}
-                  — chaque compte reçoit des clips différents tant que possible, puis les clips sont réutilisés. Ajoute des lives pour en avoir plus.
-                </span>
-              )}
-            </p>
-          </div>
+          <p className="mt-4 text-sm text-ink-300">
+            Clips disponibles : <b className="text-ink-100">{stock}</b>. Les meilleurs clips partent d'abord, différents d'un compte à l'autre tant que possible.
+          </p>
         </div>
         <div>
-          <p className="mb-2 text-xs font-medium tracking-wide text-ink-300 uppercase">Comptes</p>
+          <p className="mb-2 text-xs font-medium tracking-wide text-ink-300 uppercase">Comptes ({chosen.length} sélectionné{chosen.length > 1 ? "s" : ""})</p>
           <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
             {accounts.map((a) => {
               const on = chosen.includes(a.id);
@@ -360,7 +357,6 @@ function NewCampaign() {
                   <input type="checkbox" className="size-4 accent-brand-500" checked={on} onChange={(e) => setSelected(e.target.checked ? [...chosen, a.id] : chosen.filter((x) => x !== a.id))} />
                   <PlatformIcon platform={a.platform} />
                   <span className="flex-1 truncate text-sm">{a.name}</span>
-                  <span className="text-[11px] text-ink-400">{a.max_per_day}/jour</span>
                   {a.status !== "connected" && (
                     <Badge color="amber">
                       <AlertTriangle className="size-3" /> à connecter
@@ -370,58 +366,114 @@ function NewCampaign() {
               );
             })}
           </div>
-          <Button variant="primary" size="lg" className="mt-4 w-full" icon={<Rocket className="size-4" />} loading={busy} disabled={!n || !chosen.length} onClick={start}>
-            Publier {n} clips sur {chosen.length} compte{chosen.length > 1 ? "s" : ""}
-          </Button>
-          <p className="mt-2 text-xs text-ink-400">Automatique : les meilleurs clips (score IA) sont publiés sans validation. Rejette un clip dans l'onglet Lives pour l'exclure.</p>
+          <p className="mt-2 text-xs text-ink-400">Automatique, sans validation. Rejette un clip dans l'onglet Lives pour l'exclure.</p>
         </div>
       </div>
+      {openId !== null && <CampaignModal id={openId} onClose={() => setOpenId(null)} />}
     </Card>
+  );
+}
+
+function CampaignModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const c = useStore((s) => s.campaigns.find((x) => x.id === id));
+  const toast = useStore((s) => s.toast);
+  useEffect(() => {
+    // l'avancée arrive par WebSocket ; on rafraîchit aussi toutes les 15 s par sécurité
+    const t = window.setInterval(() => useStore.getState().loadCampaigns(), 15000);
+    return () => window.clearInterval(t);
+  }, []);
+  if (!c) return null;
+  const total = c.count * c.accounts.length;
+  return (
+    <Modal open onClose={onClose} title={`Publication : ${c.count} clips par compte`} width="max-w-3xl">
+      <div className="space-y-5">
+        <div>
+          <div className="flex items-end justify-between">
+            <div>
+              <div className="text-3xl font-semibold tabular-nums text-white">
+                {c.published_total}
+                <span className="text-lg text-ink-400"> / {total}</span>
+              </div>
+              <div className="text-sm text-ink-300">clips postés au total · 1 clip toutes les {c.interval_minutes ?? 60} min par compte</div>
+            </div>
+            {c.status === "active" ? <Badge color="violet">En cours</Badge> : c.status === "done" ? <Badge color="green"><Check className="size-3" /> Terminé</Badge> : <Badge>Arrêté</Badge>}
+          </div>
+          <ProgressBar value={c.progress} active={c.status === "active"} className="mt-3 h-3" />
+        </div>
+        <div className="space-y-2">
+          {c.accounts.map((a) => (
+            <div key={a.account_id} className="rounded-xl border border-ink-700 bg-ink-900/60 p-3">
+              <div className="flex items-center gap-3">
+                <PlatformIcon platform={a.platform} />
+                <span className="flex-1 truncate font-medium">{a.name}</span>
+                <span className="text-lg font-semibold tabular-nums text-white">
+                  {a.published}
+                  <span className="text-sm text-ink-400"> / {a.target} postés</span>
+                </span>
+              </div>
+              <ProgressBar value={a.target ? a.published / a.target : 0} active={c.status === "active" && a.published < a.target} className="mt-2" />
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-400">
+                {a.running > 0 && <span className="text-brand-300">● publication en cours…</span>}
+                {c.status === "active" && a.published < a.target && a.next_at && !a.running && <span>Prochain clip : <b className="text-ink-200">{fmtHour(a.next_at)}</b></span>}
+                {a.last_published_at && <span>Dernier : {fmtHour(a.last_published_at)}</span>}
+                {a.last_post_url && (
+                  <ExtLink href={a.last_post_url} className="inline-flex items-center gap-1">
+                    <ExternalLink className="size-3" /> voir le dernier post
+                  </ExtLink>
+                )}
+                {!a.connected && c.status === "active" && <span className="text-amber-300">⚠ compte à reconnecter</span>}
+                {a.blocked && <span className="text-red-300">⏸ en pause après 3 échecs — {a.last_error}</span>}
+                {!a.blocked && a.failed > 0 && <span className="text-red-300">{a.failed} échec(s)</span>}
+                {a.paused > 0 && <span className="text-amber-300">⏸ vérification de sécurité à faire</span>}
+                {c.status === "active" && !a.next_at && !a.running && a.published < a.target && a.connected && !a.blocked && (
+                  <span className="text-amber-300">En attente de nouveaux clips (ajoute des lives)</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between gap-2">
+          {c.status === "active" ? (
+            <Button variant="danger" icon={<Ban className="size-4" />} onClick={() => api.post(`/api/campaigns/${c.id}/cancel`).catch((e) => toast(e.message, "error"))}>
+              Arrêter la publication
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Button variant="secondary" onClick={onClose}>
+            Fermer (continue en arrière-plan)
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
 function Campaigns() {
   const campaigns = useStore((s) => s.campaigns);
-  const toast = useStore((s) => s.toast);
+  const [openId, setOpenId] = useState<number | null>(null);
   if (!campaigns.length) return null;
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {campaigns.slice(0, 10).map((c) => (
-        <Card key={c.id} className="p-4">
-          <div className="flex items-center gap-3">
-            {c.status === "active" ? <Badge color="violet">En cours</Badge> : c.status === "done" ? <Badge color="green"><Check className="size-3" /> Terminée</Badge> : <Badge>Arrêtée</Badge>}
-            <span className="font-medium">
-              {c.count} clips par compte · {c.accounts.length} compte{c.accounts.length > 1 ? "s" : ""}
-            </span>
-            <span className="text-xs text-ink-400">lancée le {fmtDate(c.created_at)}</span>
-            <span className="ml-auto text-sm tabular-nums text-ink-300">
-              {c.published_total} / {c.count * c.accounts.length} publiés
-            </span>
-            {c.status === "active" ? (
-              <Button size="sm" variant="ghost" icon={<Ban className="size-3.5" />} onClick={() => api.post(`/api/campaigns/${c.id}/cancel`).catch((e) => toast(e.message, "error"))}>
-                Arrêter
-              </Button>
-            ) : (
-              <Button size="sm" variant="ghost" aria-label="Supprimer" icon={<Trash2 className="size-3.5" />} onClick={() => api.del(`/api/campaigns/${c.id}`).then(() => useStore.getState().loadCampaigns()).catch((e) => toast(e.message, "error"))} />
-            )}
-          </div>
-          <ProgressBar value={c.progress} active={c.status === "active"} className="mt-3" />
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {c.accounts.map((a) => (
-              <div key={a.account_id} className="flex items-center gap-2 rounded-lg bg-ink-900/60 px-3 py-2 text-xs">
-                <PlatformIcon platform={a.platform} className="size-3.5" />
-                <span className="flex-1 truncate text-ink-200">{a.name}</span>
-                {!a.connected && c.status === "active" && <AlertTriangle className="size-3.5 text-amber-300" />}
-                <span className="tabular-nums text-ink-300">
-                  <b className="text-ink-100">{a.published}</b>/{a.target}
-                  {a.scheduled > 0 && <span className="text-sky-300"> · {a.scheduled} prévus</span>}
-                  {a.failed > 0 && <span className="text-red-300"> · {a.failed} échec</span>}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <button key={c.id} onClick={() => setOpenId(c.id)} className="block w-full text-left cursor-pointer">
+          <Card className="p-4 transition hover:border-ink-500">
+            <div className="flex items-center gap-3">
+              {c.status === "active" ? <Badge color="violet">En cours</Badge> : c.status === "done" ? <Badge color="green"><Check className="size-3" /> Terminé</Badge> : <Badge>Arrêté</Badge>}
+              <span className="font-medium">
+                {c.count} clips par compte · {c.accounts.length} compte{c.accounts.length > 1 ? "s" : ""}
+              </span>
+              <span className="text-xs text-ink-400">lancé le {fmtDate(c.created_at)}</span>
+              <span className="ml-auto text-sm tabular-nums text-ink-300">
+                {c.published_total} / {c.count * c.accounts.length} postés
+              </span>
+              <span className="text-xs text-brand-400">Voir l'avancée →</span>
+            </div>
+            <ProgressBar value={c.progress} active={c.status === "active"} className="mt-3" />
+          </Card>
+        </button>
       ))}
+      {openId !== null && <CampaignModal id={openId} onClose={() => setOpenId(null)} />}
     </div>
   );
 }
