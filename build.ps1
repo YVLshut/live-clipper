@@ -7,6 +7,7 @@
   .\build.ps1 -Version 1.2.0       # numéro de version de l'installeur
   .\build.ps1 -SkipFrontend        # réutiliser frontend\dist
   .\build.ps1 -SkipInstaller       # s'arrêter après PyInstaller (dist\LiveClipper)
+  .\build.ps1 -PrebuiltBootloader  # ne pas recompiler le lanceur PyInstaller (pas de compilateur C)
 
   Prérequis : Python 3.11 (py -3.11), Node.js 20+, Inno Setup 6 (ISCC.exe).
 #>
@@ -15,6 +16,7 @@ param(
     [switch]$SkipFrontend,
     [switch]$SkipInstaller,
     [switch]$SkipTools,
+    [switch]$PrebuiltBootloader,
     [string]$Python = ""
 )
 
@@ -50,6 +52,20 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Attention : Python 3.11 recommandé." -Fo
 & $py -m pip install --upgrade pip --quiet
 & $py -m pip install -r "$Root\requirements-dev.txt" --quiet
 if ($LASTEXITCODE -ne 0) { Fail "Installation des dépendances Python impossible." }
+
+if (-not $PrebuiltBootloader) {
+    # Le lanceur (bootloader) précompilé de PyInstaller est partagé par de nombreux logiciels, y compris
+    # malveillants : les antivirus le signalent souvent par simple ressemblance (faux positifs « !ml »).
+    # On le recompile à partir des sources (compilateur MSVC requis, présent sur le runner GitHub).
+    Step "Recompilation du lanceur PyInstaller (réduit les faux positifs antivirus)"
+    $pyiVersion = (& $py -c "import PyInstaller; print(PyInstaller.__version__)").Trim()
+    $env:PYINSTALLER_COMPILE_BOOTLOADER = "1"
+    & $py -m pip install --force-reinstall --no-deps --no-binary pyinstaller "pyinstaller==$pyiVersion"
+    $build = $LASTEXITCODE
+    Remove-Item Env:\PYINSTALLER_COMPILE_BOOTLOADER
+    if ($build -ne 0) { Fail "Recompilation du lanceur PyInstaller impossible (Visual Studio Build Tools requis, ou -PrebuiltBootloader)." }
+    Write-Host "Lanceur PyInstaller $pyiVersion recompilé." -ForegroundColor Green
+}
 
 # ---------------------------------------------------------------- Interface
 if (-not $SkipFrontend) {

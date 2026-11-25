@@ -68,6 +68,12 @@ Options :
 | `-SkipTools` | ne retélécharge pas ffmpeg / yt-dlp |
 | `-SkipInstaller` | s'arrête après PyInstaller (pratique pour tester `dist\LiveClipper\LiveClipper.exe`) |
 | `-Python "C:\chemin\python.exe"` | interpréteur à utiliser |
+| `-PrebuiltBootloader` | ne pas recompiler le lanceur PyInstaller (si tu n'as pas Visual Studio Build Tools) |
+
+Par défaut, le script **recompile le lanceur de PyInstaller** à partir de ses sources : le lanceur précompilé est
+partagé par de nombreux programmes, y compris malveillants, et Microsoft Defender le signale souvent par
+ressemblance (détections « …!ml »). Il faut pour cela les outils de compilation C++ :
+`winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive"`.
 
 Pour forcer la mise à jour de ffmpeg ou de yt-dlp, supprime `packaging\bin` avant de relancer le script.
 
