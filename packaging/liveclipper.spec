@@ -27,7 +27,8 @@ if os.path.isdir(bin_dir):
 elif IS_WIN:
     raise SystemExit("packaging/bin absent : build.ps1 télécharge ffmpeg, ffprobe et yt-dlp.")
 
-for pkg in ["faster_whisper", "ctranslate2", "tokenizers", "onnxruntime", "av", "webview", "playwright",
+# greenlet : indispensable à l'API synchrone de Playwright (mode navigateur)
+for pkg in ["faster_whisper", "ctranslate2", "tokenizers", "onnxruntime", "av", "webview", "playwright", "greenlet",
             "uvicorn", "websockets", "sqlmodel", "anthropic", "huggingface_hub", "keyring", "certifi"]:
     try:
         d, b, h = collect_all(pkg)
@@ -53,7 +54,7 @@ a = Analysis(
     runtime_hooks=[],
     # modules natifs optionnels non utilisés (moins de DLL à faire accepter par Windows)
     excludes=["tkinter", "matplotlib", "IPython", "pytest", "torch", "tensorflow", "PIL", "uvloop",
-              "watchfiles", "httptools", "yaml", "_yaml", "hf_xet", "greenlet"],
+              "watchfiles", "httptools", "yaml", "_yaml", "hf_xet"],
     noarchive=False,
 )
 # --- Smart App Control / stratégies de contrôle d'application Windows -----------------------------
