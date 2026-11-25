@@ -1,8 +1,11 @@
-"""Instances partagées (file de jobs, planificateur de publication)."""
+"""Instances partagées : file de jobs, worker de publication, planificateur."""
 from __future__ import annotations
 
 from .jobs import clip_job
 from .jobs.queue import JobContext, JobQueue
+from .publish import accounts
+from .publish.scheduler import Scheduler
+from .publish.worker import PublishWorker
 
 
 def _rerender(ctx: JobContext) -> None:
@@ -16,3 +19,15 @@ def _rerender(ctx: JobContext) -> None:
 HANDLERS = {"clip": clip_job.run, "rerender": _rerender}
 
 job_queue = JobQueue(HANDLERS)
+publish_worker = PublishWorker()
+scheduler = Scheduler(publish_worker.enqueue_publication, accounts.refresh_all)
+
+
+def start_publishing() -> None:
+    publish_worker.start()
+    scheduler.start()
+
+
+def stop_publishing() -> None:
+    scheduler.stop()
+    publish_worker.stop()

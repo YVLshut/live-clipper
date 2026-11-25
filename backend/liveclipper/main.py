@@ -21,16 +21,11 @@ log = logging.getLogger("liveclipper")
 def create_app(start_workers: bool = True) -> FastAPI:
     setup_logging()
     paths.setup_dll_dirs()
-    from .api import routes_clips, routes_settings
-    from .services import job_queue
+    from .api import routes_accounts, routes_clips, routes_publications, routes_settings
+    from .services import job_queue, start_publishing, stop_publishing
 
-    extra_routers = []
-    try:
-        from .api import routes_accounts, routes_publications, routes_setup
-        extra_routers = [routes_accounts.router, routes_accounts.oauth_router,
-                         routes_publications.router, routes_setup.router]
-    except ImportError:  # modules ajoutés dans les phases suivantes
-        pass
+    routers = [routes_clips.router, routes_settings.router, routes_accounts.router,
+               routes_accounts.oauth_router, routes_publications.router]
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -38,20 +33,12 @@ def create_app(start_workers: bool = True) -> FastAPI:
         db.engine()
         if start_workers:
             job_queue.start()
-            try:
-                from .services import start_publishing
-                start_publishing()
-            except ImportError:
-                pass
+            start_publishing()
         log.info("Live Clipper %s démarré (données : %s)", __version__, paths.home())
         yield
         if start_workers:
             job_queue.stop()
-            try:
-                from .services import stop_publishing
-                stop_publishing()
-            except ImportError:
-                pass
+            stop_publishing()
 
     app = FastAPI(title="Live Clipper", version=__version__, lifespan=lifespan)
 
@@ -74,9 +61,7 @@ def create_app(start_workers: bool = True) -> FastAPI:
     def health():
         return {"app": "LiveClipper", "version": __version__}
 
-    app.include_router(routes_clips.router)
-    app.include_router(routes_settings.router)
-    for r in extra_routers:
+    for r in routers:
         app.include_router(r)
 
     @app.websocket("/ws")
