@@ -1,0 +1,23 @@
+{
+  "whisper_model": "large-v3",
+  "device": "cuda",
+  "compute_type": "float16",
+  "language": "fr",
+  "min_len": 15,
+  "max_len": 60,
+  "max_clips": 5,
+  "layout": "blur",
+  "font": "Arial Black",
+  "words_per_line": 3,
+  "encoder": "libx264",
+  "cdp_url": "http://127.0.0.1:9222",
+  "default_hashtags": [
+    "#live",
+    "#clip",
+    "#fyp"
+  ],
+  "delay_between_posts_sec": [
+    90,
+    180
+  ]
+}
