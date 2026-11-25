@@ -14,14 +14,30 @@ _cache: dict[tuple, object] = {}
 _cache_lock = threading.Lock()
 
 
-def cuda_available() -> tuple[bool, str]:
-    try:
-        paths.setup_dll_dirs()
-        import ctranslate2
-        n = ctranslate2.get_cuda_device_count()
-        return (n > 0, f"{n} GPU CUDA détecté(s)" if n else "aucun GPU CUDA détecté")
-    except Exception as e:  # pragma: no cover - dépend de la machine
-        return False, f"CUDA indisponible : {e}"
+_cuda_cache: tuple[bool, str] | None = None
+_cuda_lock = threading.Lock()
+
+
+def cuda_available(refresh: bool = False) -> tuple[bool, str]:
+    """Détection CUDA, mise en cache : importer ctranslate2 + CUDA est lent (plusieurs secondes au
+    premier lancement), on ne le fait qu'une fois par processus."""
+    global _cuda_cache
+    with _cuda_lock:
+        if _cuda_cache is not None and not refresh:
+            return _cuda_cache
+        try:
+            paths.setup_dll_dirs()
+            import ctranslate2
+            n = ctranslate2.get_cuda_device_count()
+            _cuda_cache = (n > 0, f"{n} GPU CUDA détecté(s)" if n else "aucun GPU CUDA détecté")
+        except Exception as e:  # pragma: no cover - dépend de la machine
+            _cuda_cache = (False, f"CUDA indisponible : {e}")
+        return _cuda_cache
+
+
+def prewarm() -> None:
+    """Au démarrage du moteur, en arrière-plan : détection GPU (et chargement des DLL natives)."""
+    threading.Thread(target=cuda_available, name="cuda-prewarm", daemon=True).start()
 
 
 def pick_device(cfg: dict) -> tuple[str, str, str]:

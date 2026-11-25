@@ -29,11 +29,21 @@ CUDA_PACKAGES = [("nvidia-cublas-cu12", None), ("nvidia-cudnn-cu12", "9.")]
 HF = "https://huggingface.co"
 
 
+# Dépôts Hugging Face des modèles (sans importer faster_whisper, très lourd à charger).
+MODEL_REPOS = {
+    "tiny": "Systran/faster-whisper-tiny",
+    "base": "Systran/faster-whisper-base",
+    "small": "Systran/faster-whisper-small",
+    "medium": "Systran/faster-whisper-medium",
+    "large-v3": "Systran/faster-whisper-large-v3",
+    "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",  # redirigé par Hugging Face
+}
+
+
 def repo_for(model: str) -> str:
-    from faster_whisper.utils import _MODELS
-    if model not in _MODELS:
+    if model not in MODEL_REPOS:
         raise ValueError(f"Modèle inconnu : {model}")
-    return _MODELS[model]
+    return MODEL_REPOS[model]
 
 
 def model_installed(model: str) -> bool:
@@ -205,6 +215,8 @@ class SetupTask:
         shutil.rmtree(tmpdir, ignore_errors=True)
         (dest / "installed.json").write_text(json.dumps({"packages": [w[0] for w in wheels]}), encoding="utf-8")
         paths.setup_dll_dirs()
+        from .pipeline.transcribe import cuda_available
+        cuda_available(refresh=True)
 
 
 setup_task = SetupTask()

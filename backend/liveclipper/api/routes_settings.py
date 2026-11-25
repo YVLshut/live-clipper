@@ -1,6 +1,7 @@
 """Paramètres, informations système, ouverture de liens/dossiers."""
 from __future__ import annotations
 
+import functools
 import os
 import subprocess
 import sys
@@ -140,7 +141,17 @@ def test_anthropic():
     return {"ok": True, "message": "Clé API valide ✔"}
 
 
+@functools.lru_cache(maxsize=8)
+def _version_cached(cmd: tuple[str, ...]) -> Optional[str]:
+    return _version_uncached(list(cmd))
+
+
 def _version(cmd: list[str]) -> Optional[str]:
+    """Version d'un outil, mise en cache (yt-dlp.exe met 1 à 3 s à démarrer)."""
+    return _version_cached(tuple(cmd))
+
+
+def _version_uncached(cmd: list[str]) -> Optional[str]:
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, **NO_WINDOW)
         return (r.stdout or r.stderr).splitlines()[0].strip() if r.returncode == 0 else None
@@ -207,6 +218,7 @@ def update_ytdlp():
     except (OSError, subprocess.TimeoutExpired) as e:
         raise UserError(f"Mise à jour de yt-dlp impossible : {e}")
     out = (r.stdout + r.stderr).strip()
+    _version_cached.cache_clear()
     if r.returncode != 0 or "error" in out.lower():
         raise UserError("Mise à jour de yt-dlp impossible : " + (out.splitlines()[-1] if out else "erreur inconnue"))
     return {"ok": True, "message": out.splitlines()[-1] if out else "yt-dlp est à jour.",

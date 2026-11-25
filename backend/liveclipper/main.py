@@ -38,6 +38,8 @@ def create_app(start_workers: bool = True) -> FastAPI:
         if start_workers:
             job_queue.start()
             start_publishing()
+            from .pipeline.transcribe import prewarm
+            prewarm()
         log.info("Live Clipper %s démarré (données : %s)", __version__, paths.home())
         yield
         if start_workers:
