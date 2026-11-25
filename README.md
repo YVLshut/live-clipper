@@ -15,8 +15,9 @@ Les clés et jetons sont dans le Gestionnaire d'identification Windows.
 
 ## Fonctionnalités
 
-**Clipping**
-- Un ou plusieurs liens Twitch, YouTube ou Kick, ou un passage précis (début–fin). Chaque lien devient un job suivi
+**Lives**
+- Un ou plusieurs liens Twitch, YouTube ou Kick, en direct ou terminés. Un live en direct est enregistré par
+  tranches de 30 min, clippées au fur et à mesure. Chaque lien devient un job suivi
   en direct : téléchargement (yt-dlp) → transcription (faster-whisper, GPU NVIDIA ou CPU int8) → repérage IA
   (Claude, à partir de la transcription horodatée et des pics de volume) → montage ffmpeg 9:16 (fond flou ou recadrage,
   sous-titres karaoké, accroche).
@@ -33,7 +34,9 @@ Les clés et jetons sont dans le Gestionnaire d'identification Windows.
 - Règles par compte : publication automatique (désactivée par défaut), approbation manuelle obligatoire par défaut,
   score minimal, posts max par jour, plages horaires, délai aléatoire entre deux posts.
 
-**Publication**
+**Publier**
+- Choisis 10, 50 ou 100 clips par compte : les meilleurs clips sont publiés automatiquement, différents d'un
+  compte à l'autre tant que possible, au rythme réglé sur chaque compte.
 - File et calendrier des posts programmés, statut (en attente, publié + lien, échec + raison, pause), capture d'écran
   et bouton Réessayer en cas d'échec.
 

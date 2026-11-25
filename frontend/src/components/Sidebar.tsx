@@ -1,11 +1,11 @@
-import { CalendarClock, Scissors, Settings as Cog, Users } from "lucide-react";
+import { Radio, Send, Settings as Cog, Users } from "lucide-react";
 import { useStore } from "../store";
 import { cx } from "./ui";
 
 const items = [
-  { id: "clipping", label: "Clipping", icon: Scissors },
+  { id: "clipping", label: "Lives", icon: Radio },
   { id: "accounts", label: "Comptes", icon: Users },
-  { id: "publishing", label: "Publication", icon: CalendarClock },
+  { id: "publishing", label: "Publier", icon: Send },
   { id: "settings", label: "Paramètres", icon: Cog },
 ] as const;
 
@@ -14,6 +14,7 @@ export function Sidebar() {
   const setTab = useStore((s) => s.setTab);
   const connected = useStore((s) => s.connected);
   const running = useStore((s) => s.jobs.filter((j) => j.status === "running" || j.status === "queued").length);
+  const onAir = useStore((s) => s.jobs.some((j) => j.kind === "live" && j.status === "running"));
   const pending = useStore((s) => s.clips.filter((c) => c.status === "pending").length);
   const scheduled = useStore((s) => s.publications.filter((p) => p.status === "scheduled" || p.status === "paused").length);
   const reconnect = useStore((s) => s.accounts.filter((a) => a.status !== "connected").length);
@@ -41,6 +42,7 @@ export function Sidebar() {
             {tab === id && <span className="absolute top-2 bottom-2 left-0 w-1 rounded-full gradient-bg" />}
             <Icon className={cx("size-[18px]", tab === id ? "text-brand-400" : "text-ink-400 group-hover:text-ink-200")} />
             {label}
+            {id === "clipping" && onAir && <span className="size-2 animate-pulse rounded-full bg-red-500" title="Live en cours d'enregistrement" />}
             {!!badges[id] && (
               <span className={cx("ml-auto rounded-full px-2 py-0.5 text-[11px] tabular-nums", id === "accounts" ? "bg-amber-500/20 text-amber-300" : "bg-ink-600 text-ink-100")}>
                 {badges[id]}

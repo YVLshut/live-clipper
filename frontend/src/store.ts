@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "./api";
-import type { Account, Clip, Job, Publication, Settings, Source, Toast } from "./types";
+import type { Account, Campaign, Clip, Job, Publication, Settings, Source, Toast } from "./types";
 
 type Tab = "clipping" | "accounts" | "publishing" | "settings";
 
@@ -12,6 +12,7 @@ interface State {
   sources: Source[];
   accounts: Account[];
   publications: Publication[];
+  campaigns: Campaign[];
   settings: Settings | null;
   toasts: Toast[];
   setTab: (t: Tab) => void;
@@ -23,6 +24,7 @@ interface State {
   loadSources: () => Promise<void>;
   loadAccounts: () => Promise<void>;
   loadPublications: () => Promise<void>;
+  loadCampaigns: () => Promise<void>;
   loadSettings: () => Promise<void>;
   upsertClip: (c: Clip) => void;
   upsertAccount: (a: Account) => void;
@@ -46,6 +48,7 @@ export const useStore = create<State>((set, get) => ({
   sources: [],
   accounts: [],
   publications: [],
+  campaigns: [],
   settings: null,
   toasts: [],
   setTab: (tab) => set({ tab }),
@@ -63,6 +66,7 @@ export const useStore = create<State>((set, get) => ({
       get().loadSources(),
       get().loadAccounts(),
       get().loadPublications(),
+      get().loadCampaigns(),
     ]);
   },
   loadJobs: async () => set({ jobs: await api.get<Job[]>("/api/jobs") }),
@@ -78,6 +82,13 @@ export const useStore = create<State>((set, get) => ({
   loadPublications: async () => {
     try {
       set({ publications: await api.get<Publication[]>("/api/publications") });
+    } catch {
+      /* route absente */
+    }
+  },
+  loadCampaigns: async () => {
+    try {
+      set({ campaigns: await api.get<Campaign[]>("/api/campaigns") });
     } catch {
       /* route absente */
     }
@@ -148,9 +159,11 @@ export function connectWs() {
         st.setState((x) => ({ accounts: x.accounts.filter((a) => a.id !== msg.data.id) }));
         break;
       case "publication.updated":
+      case "campaign.updated":
         debounced(() => {
           s.loadPublications();
           s.loadClips();
+          s.loadCampaigns();
         });
         break;
       case "settings.updated":

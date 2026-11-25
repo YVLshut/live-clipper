@@ -99,7 +99,8 @@ def retry_job(job_id: int):
         raise UserError("Job introuvable.", status=404)
     if j.status not in ("failed", "cancelled"):
         raise UserError("Seuls les jobs en échec ou annulés peuvent être relancés.")
-    nj = job_queue.submit(j.kind, url=j.url, options=j.options, clip_id=j.clip_id)
+    kind = "clip" if j.kind == "live" else j.kind   # un live est re-sondé : s'il est encore en direct, il reprend
+    nj = job_queue.submit(kind, url=j.url, options=j.options, clip_id=j.clip_id)
     return job_out(nj)
 
 

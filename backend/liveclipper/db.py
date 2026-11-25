@@ -30,7 +30,24 @@ def engine():
                 cur.close()
 
             SQLModel.metadata.create_all(_engine)
+            _add_missing_columns(_engine)
         return _engine
+
+
+def _add_missing_columns(eng) -> None:
+    """Migration légère : ajoute aux tables existantes les colonnes apparues dans une nouvelle version
+    (create_all ne crée que les tables manquantes). Les nouvelles colonnes sont toujours facultatives."""
+    from sqlalchemy import inspect, text
+    insp = inspect(eng)
+    with eng.begin() as conn:
+        for table in SQLModel.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            existing = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name not in existing:
+                    ddl = col.type.compile(dialect=eng.dialect)
+                    conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {ddl}'))
 
 
 def reset_engine() -> None:

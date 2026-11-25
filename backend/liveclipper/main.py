@@ -26,7 +26,7 @@ def create_app(start_workers: bool = True) -> FastAPI:
     except OSError as e:
         log.warning("Copie de yt-dlp impossible : %s", e)
     from .api import routes_accounts, routes_clips, routes_publications, routes_settings, routes_setup
-    from .services import job_queue, start_publishing, stop_publishing
+    from .services import job_queue, live_manager, start_publishing, stop_publishing
 
     routers = [routes_clips.router, routes_settings.router, routes_accounts.router,
                routes_accounts.oauth_router, routes_publications.router, routes_setup.router]
@@ -37,6 +37,7 @@ def create_app(start_workers: bool = True) -> FastAPI:
         db.engine()
         if start_workers:
             job_queue.start()
+            live_manager.start()
             start_publishing()
             from .pipeline.transcribe import prewarm
             prewarm()

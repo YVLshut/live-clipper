@@ -12,7 +12,7 @@ from sqlmodel import select
 
 from .. import db
 from ..events import bus
-from ..models import Account, Clip, Publication, now
+from ..models import Account, Campaign, Clip, Publication, now
 
 log = logging.getLogger("liveclipper.scheduler")
 
@@ -117,6 +117,113 @@ def plan_auto(account: Account, current: datetime | None = None, rng: random.Ran
     return created
 
 
+# ------------------------------------------------------------------ campagnes (onglet Publier)
+def campaign_counts(campaign_id: int, account_id: int) -> dict[str, int]:
+    with db.session() as s:
+        pubs = s.exec(select(Publication).where(Publication.campaign_id == campaign_id,
+                                                Publication.account_id == account_id)).all()
+    out = {"published": 0, "scheduled": 0, "running": 0, "paused": 0, "failed": 0}
+    for p in pubs:
+        if p.status in out:
+            out[p.status] += 1
+    return out
+
+
+def campaign_candidates(account: Account) -> list[Clip]:
+    """Clips publiables sur ce compte, du plus intéressant au moins intéressant :
+    d'abord ceux encore jamais utilisés sur un autre compte (« différents si possible »), puis par score."""
+    with db.session() as s:
+        clips = s.exec(select(Clip).where(Clip.status != "rejected", Clip.rendering == False)).all()  # noqa: E712
+        active = s.exec(select(Publication).where(Publication.status.in_(ACTIVE))).all()
+    taken_here = {p.clip_id for p in active if p.account_id == account.id}
+    usage: dict[str, int] = {}
+    for p in active:
+        usage[p.clip_id] = usage.get(p.clip_id, 0) + 1
+    clips = [c for c in clips if c.id not in taken_here and (c.score or 0) >= (account.min_score or 0)]
+    return sorted(clips, key=lambda c: (usage.get(c.id, 0), -(c.score or 0), c.created_at))
+
+
+def plan_campaigns(current: datetime | None = None, rng: random.Random | None = None,
+                   horizon_hours: int = 48) -> list[Publication]:
+    """Pour chaque campagne active et chaque compte : programme les prochains clips selon les règles
+    du compte (plages, quota/jour, délai aléatoire), jusqu'à atteindre le nombre demandé."""
+    current = (current or datetime.now(timezone.utc)).astimezone()
+    created: list[Publication] = []
+    with db.session() as s:
+        campaigns = s.exec(select(Campaign).where(Campaign.status == "active").order_by(Campaign.id)).all()
+        accounts = {a.id: a for a in s.exec(select(Account)).all()}
+    for camp in campaigns:
+        all_done = True
+        for aid in camp.account_ids or []:
+            acc = accounts.get(aid)
+            if acc is None:
+                continue
+            counts = campaign_counts(camp.id, aid)
+            if counts["published"] < camp.count:
+                all_done = False
+            remaining = camp.count - (counts["published"] + counts["scheduled"] + counts["running"] + counts["paused"])
+            if remaining <= 0 or acc.status != "connected":
+                continue
+            exist = existing_times(aid)
+            for clip in campaign_candidates(acc)[:remaining]:
+                slot = next_slot(current, acc.time_windows, exist, acc.max_per_day,
+                                 acc.delay_min_minutes, acc.delay_max_minutes, rng)
+                if slot is None or slot > current + timedelta(hours=horizon_hours):
+                    break
+                pub = Publication(clip_id=clip.id, account_id=aid, scheduled_at=slot.astimezone(timezone.utc),
+                                  auto=True, campaign_id=camp.id)
+                with db.session() as s:
+                    s.add(pub)
+                    s.commit()
+                    s.refresh(pub)
+                exist.append(slot)
+                created.append(pub)
+                bus.publish("publication.updated", pub)
+        if all_done and camp.account_ids:
+            with db.session() as s:
+                c = s.get(Campaign, camp.id)
+                c.status, c.finished_at = "done", now()
+                s.add(c)
+                s.commit()
+            bus.publish("campaign.updated", {"id": camp.id})
+            bus.notify(f"✔ Campagne terminée : {camp.count} clips publiés sur chaque compte.", "success")
+    return created
+
+
+def respace_overdue(account: Account, due: list[Publication], rng: random.Random | None = None) -> list[Publication]:
+    """Après une fermeture de l'application, plusieurs posts d'un même compte peuvent être en retard.
+    On n'en publie qu'un tout de suite et on réétale les autres selon les règles du compte
+    (sinon ils partiraient tous à la suite, comme un robot). Renvoie la publication à lancer maintenant."""
+    if not due:
+        return []
+    first, rest = due[0], due[1:]
+    if not rest:
+        return [first]
+    ids = {p.id for p in rest}
+    current = datetime.now(timezone.utc).astimezone()
+    exist = [t for p_id, t in _times_by_pub(account.id) if p_id not in ids] + [current]
+    for p in rest:
+        slot = next_slot(current, account.time_windows, exist, account.max_per_day,
+                         account.delay_min_minutes, account.delay_max_minutes, rng) or current + timedelta(days=1)
+        exist.append(slot)
+        with db.session() as s:
+            row = s.get(Publication, p.id)
+            row.scheduled_at = slot.astimezone(timezone.utc)
+            s.add(row)
+            s.commit()
+            s.refresh(row)
+        bus.publish("publication.updated", row)
+        log.info("Publication %s en retard réétalée à %s", p.id, slot)
+    return [first]
+
+
+def _times_by_pub(account_id: int) -> list[tuple[int, datetime]]:
+    with db.session() as s:
+        pubs = s.exec(select(Publication).where(Publication.account_id == account_id,
+                                                Publication.status.in_(ACTIVE))).all()
+    return [(p.id, p.published_at or p.scheduled_at) for p in pubs]
+
+
 class Scheduler:
     """Thread qui programme les publications automatiques et déclenche celles qui sont dues."""
 
@@ -158,13 +265,21 @@ class Scheduler:
                 plan_auto(a)
             except Exception:
                 log.exception("Planification du compte %s", a.id)
-        connected = {a.id for a in accounts if a.status == "connected"}
+        try:
+            plan_campaigns()
+        except Exception:
+            log.exception("Planification des campagnes")
+        by_id = {a.id: a for a in accounts if a.status == "connected"}
         with db.session() as s:
             due = s.exec(select(Publication).where(Publication.status == "scheduled",
                                                    Publication.scheduled_at <= now())
                          .order_by(Publication.scheduled_at)).all()
+        per_account: dict[int, list[Publication]] = {}
         for p in due:
-            if p.account_id in connected:
+            if p.account_id in by_id:
+                per_account.setdefault(p.account_id, []).append(p)
+        for aid, pubs in per_account.items():
+            for p in respace_overdue(by_id[aid], pubs):
                 self.enqueue(p.id)
 
     def _loop(self) -> None:

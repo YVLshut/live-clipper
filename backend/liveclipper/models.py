@@ -46,6 +46,7 @@ class Job(SQLModel, table=True):
     source_id: Optional[str] = None
     clip_id: Optional[str] = None
     clips_count: int = 0
+    extra: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))  # live : durée enregistrée, tranches
     created_at: datetime = Field(default_factory=now)
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -108,4 +109,15 @@ class Publication(SQLModel, table=True):
     caption: Optional[str] = None
     attempts: int = 0
     auto: bool = False                          # créée par la publication automatique
+    campaign_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=now)
+
+
+class Campaign(SQLModel, table=True):
+    """« Publier N clips sur chacun de ces comptes » (onglet Publier)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    count: int                                   # clips à publier PAR compte
+    account_ids: list = Field(default_factory=list, sa_column=Column(JSON))
+    status: str = "active"                       # active | done | cancelled
+    created_at: datetime = Field(default_factory=now)
+    finished_at: Optional[datetime] = None

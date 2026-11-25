@@ -1,8 +1,8 @@
-import { AlertTriangle, BookOpen, Camera, ChevronDown, ClipboardPaste, Globe, Plug, Plus, RefreshCw, ShieldCheck, Trash2, UserCheck, Zap } from "lucide-react";
+import { AlertTriangle, BookOpen, Camera, ChevronDown, ClipboardPaste, Globe, Plug, Plus, RefreshCw, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "../api";
 import { DevGuide } from "../components/DevGuide";
-import { Badge, Button, Card, Confirm, Empty, Field, Input, Modal, PlatformIcon, Select, Toggle, cx } from "../components/ui";
+import { Badge, Button, Card, Confirm, Empty, Field, Input, Modal, PlatformIcon, Select, cx } from "../components/ui";
 import { useStore } from "../store";
 import type { Account, Platform } from "../types";
 
@@ -132,11 +132,6 @@ function AccountCard({ account }: { account: Account }) {
               {account.mode === "api" ? <ShieldCheck className="size-3" /> : <Globe className="size-3" />}
               {account.mode === "api" ? "API officielle" : "Navigateur"}
             </Badge>
-            {account.auto_publish && (
-              <Badge color="green">
-                <Zap className="size-3" /> Auto
-              </Badge>
-            )}
           </div>
           <p className="mt-0.5 text-sm text-ink-300">
             {PLATFORM_NAMES[account.platform]}
@@ -242,15 +237,7 @@ function RulesEditor({ account }: { account: Account }) {
 
   return (
     <div className="animate-fade-up space-y-5 border-t border-ink-700 p-5">
-      <div className="flex flex-wrap gap-x-8 gap-y-3">
-        <Toggle checked={r.auto_publish} onChange={(v) => set("auto_publish", v)} label="Publication automatique" />
-        <Toggle checked={r.require_approval} onChange={(v) => set("require_approval", v)} label="Approbation manuelle obligatoire" />
-      </div>
-      {!r.require_approval && (
-        <p className="flex items-center gap-1.5 text-xs text-amber-300">
-          <AlertTriangle className="size-3.5" /> Les clips non vérifiés au-dessus du score minimal pourront être publiés automatiquement.
-        </p>
-      )}
+      <p className="text-xs text-ink-400">Ces règles fixent le rythme des publications lancées depuis l'onglet Publier.</p>
       <div className="grid gap-4 md:grid-cols-4">
         <Field label={`Score minimal : ${r.min_score.toFixed(1)}/10`}>
           <input type="range" min={0} max={10} step={0.5} value={r.min_score} onChange={(e) => set("min_score", +e.target.value)} className="mt-2 w-full accent-brand-500" />

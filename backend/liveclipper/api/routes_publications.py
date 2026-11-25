@@ -13,7 +13,7 @@ from sqlmodel import select
 from .. import db
 from ..errors import UserError
 from ..events import bus
-from ..models import Account, Clip, Publication, now
+from ..models import Account, Campaign, Clip, Publication, now
 from ..services import publish_worker
 from .serializers import publication_out
 
@@ -176,3 +176,107 @@ def screenshot(pub_id: int):
     if not p.screenshot or not Path(p.screenshot).exists():
         raise UserError("Aucune capture d'écran.", status=404)
     return FileResponse(p.screenshot, media_type="image/png")
+
+
+
+# ------------------------------------------------------------------ campagnes (onglet Publier)
+def campaign_out(c: Campaign, accounts: dict[int, Account]) -> dict:
+    from ..events import to_jsonable
+    from ..publish.scheduler import campaign_counts
+    d = to_jsonable(c)
+    rows = []
+    for aid in c.account_ids or []:
+        acc = accounts.get(aid)
+        counts = campaign_counts(c.id, aid)
+        rows.append({"account_id": aid, "name": acc.name if acc else "Compte supprimé",
+                     "platform": acc.platform if acc else None,
+                     "connected": bool(acc and acc.status == "connected"),
+                     "max_per_day": acc.max_per_day if acc else None, **counts, "target": c.count})
+    d["accounts"] = rows
+    total = c.count * max(1, len(rows))
+    d["published_total"] = sum(r["published"] for r in rows)
+    d["progress"] = round(d["published_total"] / total, 4) if rows else 0
+    return d
+
+
+@router.get("/campaigns")
+def list_campaigns():
+    with db.session() as s:
+        camps = s.exec(select(Campaign).order_by(Campaign.id.desc())).all()
+        accs = {a.id: a for a in s.exec(select(Account)).all()}
+    return [campaign_out(c, accs) for c in camps]
+
+
+@router.get("/campaigns/stock")
+def campaign_stock():
+    """Clips disponibles pour une campagne (non rejetés, montés)."""
+    with db.session() as s:
+        clips = s.exec(select(Clip).where(Clip.status != "rejected")).all()
+        used = {p.clip_id for p in s.exec(select(Publication).where(
+            Publication.status.in_(["scheduled", "running", "published", "paused"]))).all()}
+    return {"clips": len(clips), "unused": len([c for c in clips if c.id not in used])}
+
+
+class CampaignCreate(BaseModel):
+    count: int
+    account_ids: list[int]
+
+
+@router.post("/campaigns")
+def create_campaign(body: CampaignCreate):
+    if not 1 <= body.count <= 1000:
+        raise UserError("Choisis un nombre de clips entre 1 et 1000.")
+    if not body.account_ids:
+        raise UserError("Choisis au moins un compte.")
+    with db.session() as s:
+        accs = {a.id: a for a in s.exec(select(Account)).all()}
+        missing = [i for i in body.account_ids if i not in accs]
+        if missing:
+            raise UserError("Compte introuvable.", status=404)
+        c = Campaign(count=body.count, account_ids=list(dict.fromkeys(body.account_ids)))
+        s.add(c)
+        s.commit()
+        s.refresh(c)
+    from ..publish.scheduler import plan_campaigns
+    try:
+        plan_campaigns()          # programme tout de suite les premiers posts
+    except Exception:
+        pass
+    bus.publish("campaign.updated", {"id": c.id})
+    offline = [accs[i].name for i in body.account_ids if accs[i].status != "connected"]
+    out = campaign_out(c, accs)
+    if offline:
+        out["warning"] = ("Comptes non connectés (ils publieront une fois reconnectés) : " + ", ".join(offline))
+    return out
+
+
+@router.post("/campaigns/{campaign_id}/cancel")
+def cancel_campaign(campaign_id: int):
+    with db.session() as s:
+        c = s.get(Campaign, campaign_id)
+        if c is None:
+            raise UserError("Campagne introuvable.", status=404)
+        c.status, c.finished_at = "cancelled", now()
+        s.add(c)
+        for p in s.exec(select(Publication).where(Publication.campaign_id == campaign_id,
+                                                  Publication.status.in_(["scheduled", "paused"]))).all():
+            p.status, p.error = "cancelled", "Campagne arrêtée"
+            s.add(p)
+        s.commit()
+    bus.publish("campaign.updated", {"id": campaign_id})
+    bus.publish("publication.updated", {})
+    return {"ok": True}
+
+
+@router.delete("/campaigns/{campaign_id}")
+def delete_campaign(campaign_id: int):
+    with db.session() as s:
+        c = s.get(Campaign, campaign_id)
+        if c is None:
+            raise UserError("Campagne introuvable.", status=404)
+        if c.status == "active":
+            raise UserError("Arrête d'abord cette campagne.")
+        s.delete(c)
+        s.commit()
+    bus.publish("campaign.updated", {"id": campaign_id})
+    return {"ok": True}

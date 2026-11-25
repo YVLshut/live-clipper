@@ -61,8 +61,8 @@ def _validate(k: str, v: Any) -> Any:
             raise UserError("Les durées doivent être comprises entre 3 et 180 secondes.")
     if k == "max_clips":
         v = int(v)
-        if not 1 <= v <= 30:
-            raise UserError("Nombre de clips : entre 1 et 30.")
+        if not 1 <= v <= 100:
+            raise UserError("Nombre de clips : entre 1 et 100.")
     if k == "words_per_line":
         v = max(1, min(6, int(v)))
     if k == "whisper_model" and v not in config.WHISPER_MODELS:

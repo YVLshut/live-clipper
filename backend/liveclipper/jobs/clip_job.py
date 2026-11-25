@@ -12,7 +12,7 @@ from ..events import bus
 from ..models import Clip, Source
 from ..pipeline import download, highlights, peaks, render, transcribe
 from ..pipeline.utils import check, duration, hms
-from .queue import JobContext
+from .queue import Detached, JobContext
 
 log = logging.getLogger("liveclipper.jobs")
 
@@ -24,7 +24,7 @@ def effective_config(options: dict) -> dict:
     for k in OPTION_KEYS:
         if options.get(k) not in (None, ""):
             cfg[k] = options[k]
-    cfg["max_clips"] = max(1, min(30, int(cfg["max_clips"])))
+    cfg["max_clips"] = max(1, min(100, int(cfg["max_clips"])))
     cfg["min_len"], cfg["max_len"] = float(cfg["min_len"]), float(cfg["max_len"])
     if cfg["min_len"] < 3 or cfg["max_len"] > 180 or cfg["min_len"] >= cfg["max_len"]:
         raise UserError("Durées invalides : il faut 3 s ≤ durée min < durée max ≤ 180 s.")
@@ -71,10 +71,27 @@ def run(ctx: JobContext) -> None:
     cfg = effective_config(opts)
     section = normalize_section(opts.get("section"))
 
-    # 1. Téléchargement
+    # 0. Live en cours ? -> enregistrement par tranches (gestionnaire des lives)
+    info = None
+    live_src = opts.get("live_source")
+    if not live_src and str(job.url or "").startswith(("http://", "https://")):
+        ctx.step("download", 0, "Lecture des informations du live…")
+        info = download.probe(job.url)
+        src0 = download.source_from_info(info, job.url)
+        if src0.get("is_live"):
+            from .. import services
+            services.live_manager.adopt(job.id, job.url, src0, opts)
+            raise Detached()
+
+    # 1. Téléchargement (ou tranche d'un live déjà enregistrée sur le disque)
     ctx.step("download", 0, "Téléchargement…")
     d, src = download.download(job.url, paths.work_dir(), section,
-                               progress=ctx.progress_for("download"), cancel=ctx.cancelled)
+                               progress=ctx.progress_for("download"), cancel=ctx.cancelled, info=info)
+    if live_src:  # tranche d'un live : on crédite le vrai live, pas le fichier local
+        k = int(opts.get("segment") or 0)
+        src = {**live_src, "id": f"{live_src['id']}_t{k + 1:03d}",
+               "title": f"{live_src.get('title') or 'Live'} (partie {k + 1})"}
+
     total = duration(d / "video.mp4")
     if total <= 0:
         raise UserError("La vidéo téléchargée est vide ou illisible.")
@@ -124,6 +141,11 @@ def run(ctx: JobContext) -> None:
         created += 1
         bus.publish("clip.created", clip)
     ctx.update(clips_count=created, message=f"{created} clip(s) créé(s)")
+    if live_src:  # tranche d'un live clippée avec succès : la copie brute n'est plus utile
+        try:
+            Path(job.url).unlink(missing_ok=True)
+        except OSError:
+            pass
     bus.notify(f"{created} clip(s) prêt(s) pour « {source.title or source.author} »", "success", job_id=job.id)
 
 

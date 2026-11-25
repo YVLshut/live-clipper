@@ -49,9 +49,11 @@ export function ClippingPage() {
     <div className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">
-          <span className="gradient-text">Clipping</span> automatique
+          <span className="gradient-text">Lives</span>
         </h1>
-        <p className="mt-1 text-sm text-ink-300">Colle un lien de live : Live Clipper repère les moments forts et monte des clips verticaux sous-titrés.</p>
+        <p className="mt-1 text-sm text-ink-300">
+          Colle des liens de lives, en direct ou terminés. En direct, le live est enregistré par tranches de 30 min et clippé au fur et à mesure ; terminé, il est clippé en entier.
+        </p>
       </header>
       <NewJobForm />
       <JobsSection />
@@ -90,7 +92,7 @@ function NewJobForm() {
           section: useSection ? `${secStart}-${secEnd}` : undefined,
         },
       });
-      toast(`${res.jobs.length} job(s) ajouté(s) à la file`, "success");
+      toast(`${res.jobs.length} live(s) ajouté(s)`, "success");
       if (res.warning) toast(res.warning, "warning");
       setUrls("");
       useStore.getState().loadJobs();
@@ -106,12 +108,12 @@ function NewJobForm() {
       <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-brand-500/10 blur-3xl" />
       <div className="relative grid gap-6 lg:grid-cols-[1fr_340px]">
         <div>
-          <Field label="Liens des lives (Twitch, YouTube, Kick)" hint="Un lien par ligne : chaque lien devient un job.">
+          <Field label="Liens des lives (Twitch, YouTube, Kick)" hint="Un lien par ligne. Lien d'une chaîne en direct (ex. twitch.tv/pseudo) ou d'une rediffusion.">
             <Textarea
               value={urls}
               onChange={(e) => setUrls(e.target.value)}
               rows={5}
-              placeholder={"https://www.twitch.tv/videos/123456789\nhttps://www.youtube.com/watch?v=…\nhttps://kick.com/…/videos/…"}
+              placeholder={"https://www.twitch.tv/pseudo   (live en direct)\nhttps://www.twitch.tv/videos/123456789\nhttps://www.youtube.com/watch?v=…\nhttps://kick.com/pseudo"}
               className="font-mono text-[13px]"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && count) submit();
@@ -120,7 +122,7 @@ function NewJobForm() {
           </Field>
           <div className="mt-4 flex items-center gap-3">
             <Button variant="primary" size="lg" icon={<Scissors className="size-4" />} loading={busy} disabled={!urls.trim()} onClick={submit}>
-              Lancer le clipping{count > 1 ? ` (${count} liens)` : ""}
+              Ajouter {count > 1 ? `ces ${count} lives` : "ce live"}
             </Button>
             {!settings?.secrets.anthropic_api_key && (
               <span className="flex items-center gap-1.5 text-xs text-amber-300">
@@ -131,7 +133,7 @@ function NewJobForm() {
         </div>
         <div className="space-y-4 rounded-xl border border-ink-700 bg-ink-900/60 p-4">
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Clips max">
+            <Field label="Clips max" hint="par live (ou par tranche de 30 min en direct)">
               <Input type="number" min={1} max={30} value={maxClips} placeholder={String(settings?.max_clips ?? 5)} onChange={(e) => setMaxClips(e.target.value ? +e.target.value : "")} />
             </Field>
             <Field label="Durée min (s)">
@@ -152,7 +154,7 @@ function NewJobForm() {
             />
           </Field>
           <div>
-            <Toggle checked={useSection} onChange={setUseSection} label="Passage précis uniquement" />
+            <Toggle checked={useSection} onChange={setUseSection} label="Passage précis uniquement (rediffusion)" />
             {useSection && (
               <div className="mt-3 flex items-center gap-2">
                 <Input value={secStart} onChange={(e) => setSecStart(e.target.value)} className="font-mono" placeholder="HH:MM:SS" />
@@ -178,14 +180,14 @@ const STEPS = [
 function JobsSection() {
   const jobs = useStore((s) => s.jobs);
   const toast = useStore((s) => s.toast);
-  const visible = jobs.filter((j) => j.kind === "clip" || j.status === "running" || j.status === "failed");
+  const visible = jobs.filter((j) => j.kind === "clip" || j.kind === "live" || j.status === "running" || j.status === "failed");
   if (!visible.length) return null;
   const finished = visible.some((j) => ["done", "failed", "cancelled"].includes(j.status));
   return (
     <section>
       <SectionTitle
-        title="File de traitement"
-        subtitle="Avancement en direct de chaque live."
+        title="Lives en cours de traitement"
+        subtitle="Enregistrement, transcription, repérage IA et montage, en direct."
         right={
           finished && (
             <Button size="sm" variant="ghost" icon={<X className="size-3.5" />} onClick={() => api.del("/api/jobs").catch((e) => toast(e.message, "error"))}>
@@ -227,11 +229,84 @@ function SourceLine({ source, compact }: { source: Source; compact?: boolean }) 
   );
 }
 
+function LiveCard({ job }: { job: Job }) {
+  const toast = useStore((s) => s.toast);
+  const src = (job.extra?.source ?? job.source ?? null) as Source | null;
+  const onAir = job.status === "running";
+  // sélectionner un nombre (valeur stable) : une liste recréée à chaque lecture ferait boucler le rendu
+  const clips = useStore((s) =>
+    s.jobs.reduce((n, j) => n + ((j.options as { live_job_id?: number })?.live_job_id === job.id ? j.clips_count || 0 : 0), 0),
+  );
+  const act = (p: Promise<unknown>) => p.catch((e) => toast(e.message, "error"));
+  return (
+    <Card className={cx("animate-fade-up p-4", onAir && "ring-1 ring-red-500/40")}>
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {onAir ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold text-red-300">
+                <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> EN DIRECT
+              </span>
+            ) : (
+              <StatusBadge status={job.status} />
+            )}
+            <p className="truncate font-medium text-ink-100">{src?.title || job.url}</p>
+          </div>
+          {src && (
+            <div className="mt-1">
+              <SourceLine source={src as Source} compact />
+            </div>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {onAir && (
+            <Button size="sm" variant="ghost" icon={<Ban className="size-3.5" />} onClick={() => act(api.post(`/api/jobs/${job.id}/cancel`))}>
+              Arrêter l'enregistrement
+            </Button>
+          )}
+          {(job.status === "failed" || job.status === "cancelled") && (
+            <Button size="sm" variant="ghost" icon={<RotateCcw className="size-3.5" />} onClick={() => act(api.post(`/api/jobs/${job.id}/retry`))}>
+              Reprendre
+            </Button>
+          )}
+          {!onAir && (
+            <Button size="sm" variant="ghost" aria-label="Supprimer" icon={<Trash2 className="size-3.5" />} onClick={() => act(api.del(`/api/jobs/${job.id}`))} />
+          )}
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <Stat label="Enregistré" value={fmtDuration(job.extra?.recorded ?? 0)} />
+        <Stat label="Tranches clippées" value={String(job.extra?.segments ?? 0)} />
+        <Stat label="Clips créés" value={String(clips)} />
+      </div>
+      <p className="mt-2 text-xs text-ink-400">{job.message}</p>
+      {job.status === "failed" && job.error && <p className="mt-2 rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2 text-sm text-red-300">{job.error}</p>}
+    </Card>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-ink-700 bg-ink-900/50 py-2">
+      <div className="text-base font-semibold tabular-nums text-ink-100">{value}</div>
+      <div className="text-[11px] text-ink-400">{label}</div>
+    </div>
+  );
+}
+
 function JobCard({ job }: { job: Job }) {
   const toast = useStore((s) => s.toast);
+  if (job.kind === "live") return <LiveCard job={job} />;
   const stepIdx = STEPS.findIndex((s) => s.id === job.step);
   const active = job.status === "running";
-  const title = job.kind === "rerender" ? `Remontage du clip ${job.clip_id}` : job.source?.title || job.url;
+  const liveSrc = (job.options as { live_source?: Source; segment?: number })?.live_source;
+  const segment = (job.options as { segment?: number })?.segment ?? 0;
+  const title =
+    job.kind === "rerender"
+      ? `Remontage du clip ${job.clip_id}`
+      : liveSrc
+        ? `${liveSrc.title || "Live"} — tranche ${segment + 1}`
+        : job.source?.title || job.url;
   const act = (p: Promise<unknown>) => p.catch((e) => toast(e.message, "error"));
 
   return (

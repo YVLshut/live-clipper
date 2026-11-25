@@ -65,6 +65,11 @@ class JobContext:
 Handler = Callable[[JobContext], None]
 
 
+class Detached(Exception):
+    """Le job a été confié à un autre exécutant (ex. enregistrement d'un live en direct) : la file
+    ne doit pas changer son statut."""
+
+
 class JobQueue:
     def __init__(self, handlers: dict[str, Handler]):
         self.handlers = handlers
@@ -79,7 +84,7 @@ class JobQueue:
         if self._thread and self._thread.is_alive():
             return
         with db.session() as s:  # reprise après un arrêt brutal
-            for j in s.exec(select(Job).where(Job.status == "running")).all():
+            for j in s.exec(select(Job).where(Job.status == "running", Job.kind != "live")).all():
                 j.status, j.message = "queued", "Repris après redémarrage"
                 s.add(j)
             s.commit()
@@ -126,7 +131,7 @@ class JobQueue:
     # ------------------------------------------------------------ boucle
     def _next(self) -> Job | None:
         with db.session() as s:
-            jobs = s.exec(select(Job).where(Job.status == "queued").order_by(Job.id)).all()
+            jobs = s.exec(select(Job).where(Job.status == "queued", Job.kind != "live").order_by(Job.id)).all()
         if not jobs:
             return None
         # les remontages (rapides) passent avant les nouveaux lives
@@ -158,6 +163,8 @@ class JobQueue:
             handler = self.handlers[job.kind]
             handler(ctx)
             ctx.update(status="done", progress=1.0, finished_at=now(), message=ctx.job().message or "Terminé")
+        except Detached:
+            log.info("Job %s confié à un autre exécutant", job.id)
         except Cancelled:
             ctx.update(status="cancelled", message="Annulé", finished_at=now())
         except Exception as e:

@@ -78,13 +78,17 @@ Get-WinEvent -LogName 'Microsoft-Windows-CodeIntegrity/Operational' -MaxEvents 3
 - [ ] Encodeur **h264_nvenc** (Paramètres → Montage) : un clip se monte nettement plus vite ; le fichier se lit bien.
       Si NVENC échoue, le log indique « repli sur libx264 » et le clip est quand même créé.
 
-## 5. Clipping (Onglet 1)
+## 5. Lives (Onglet 1)
 
 Utilise des lives de créateurs qui t'ont donné leur accord.
 
 - [ ] Colle un lien **Twitch** (VOD), lance avec « Passage précis » 00:10:00 → 00:30:00 et 3 clips max.
       Le job affiche en direct Téléchargement → Transcription → Repérage IA → Montage, avec le pourcentage.
 - [ ] Colle **plusieurs liens** (YouTube + Kick) d'un coup : un job par lien, traités l'un après l'autre.
+- [ ] **Live en direct** : colle le lien d'une chaîne qui est en live (ex. `https://www.twitch.tv/pseudo`).
+      La carte affiche « EN DIRECT », la durée enregistrée augmente ; toutes les 30 min, une tranche part au
+      clipping et ses clips arrivent dans la galerie pendant le live. « Arrêter l'enregistrement » clippe ce qui
+      a déjà été enregistré. À la fin du live, la carte passe à « Terminé » toute seule.
 - [ ] La carte du job affiche l'auteur (lien vers la chaîne), la plateforme, la date et un lien « live ».
 - [ ] **Annuler** un job en cours : il s'arrête et passe en « Annulé » ; **Réessayer** le relance.
 - [ ] Lien invalide ou vidéo privée : message d'erreur clair en français, pas de plantage.
@@ -131,7 +135,17 @@ Utilise des lives de créateurs qui t'ont donné leur accord.
 - [ ] Relance l'app puis **Vérifier** : toujours connecté (profil persistant).
 - [ ] Ajoute un 2e compte du même réseau en mode navigateur : sessions indépendantes.
 
-## 8. Publication (Onglet 3)
+## 8. Publier (Onglet 3)
+
+- [ ] Choisis **10**, **50** ou **100** clips, coche des comptes, clique sur « Publier N clips sur X comptes ».
+      La campagne apparaît avec une barre de progression et un compteur par compte (publiés / prévus).
+- [ ] Les clips programmés sont différents d'un compte à l'autre tant qu'il y en a assez, puis réutilisés.
+- [ ] Le rythme suit les règles de chaque compte (posts/jour, plages horaires, délai aléatoire).
+- [ ] Ferme l'app quelques heures puis rouvre-la : les posts en retard ne partent pas tous d'un coup, ils sont
+      réétalés selon les règles du compte.
+- [ ] « Arrêter » une campagne annule ses posts encore programmés.
+
+### File de publication et historique
 
 - [ ] Approuve un clip → **Programmer** → coche un compte → « Dès que possible » → **Publier**.
       Le post apparaît dans « Publication » en « En cours » puis « Publié », avec **Voir le post** qui ouvre le bon lien.

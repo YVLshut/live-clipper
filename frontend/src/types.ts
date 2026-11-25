@@ -13,11 +13,11 @@ export interface Source {
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
-export type Step = "download" | "transcribe" | "detect" | "render";
+export type Step = "download" | "transcribe" | "detect" | "render" | "record";
 
 export interface Job {
   id: number;
-  kind: "clip" | "rerender";
+  kind: "clip" | "rerender" | "live";
   url: string | null;
   options: Record<string, unknown>;
   status: JobStatus;
@@ -29,6 +29,7 @@ export interface Job {
   source_id: string | null;
   clip_id: string | null;
   clips_count: number;
+  extra: { recorded?: number; segments?: number; started?: number; source?: Partial<Source> } | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
@@ -152,4 +153,30 @@ export interface SystemInfo {
   data_dir: string;
   logs_dir: string;
   platform: string;
+}
+
+export interface CampaignAccount {
+  account_id: number;
+  name: string;
+  platform: Platform | null;
+  connected: boolean;
+  max_per_day: number | null;
+  published: number;
+  scheduled: number;
+  running: number;
+  paused: number;
+  failed: number;
+  target: number;
+}
+
+export interface Campaign {
+  id: number;
+  count: number;
+  account_ids: number[];
+  status: "active" | "done" | "cancelled";
+  created_at: string;
+  finished_at: string | null;
+  accounts: CampaignAccount[];
+  published_total: number;
+  progress: number;
 }

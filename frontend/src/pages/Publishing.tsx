@@ -1,9 +1,9 @@
-import { Ban, CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Image, List, Play, RotateCcw, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, Ban, CalendarDays, Check, ChevronLeft, ChevronRight, ExternalLink, Image, List, Play, Rocket, RotateCcw, Send, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { api } from "../api";
-import { Badge, Button, Card, Empty, ExtLink, Modal, PlatformIcon, ScoreBadge, Segmented, cx, fmtDate } from "../components/ui";
+import { Badge, Button, Card, Empty, ExtLink, Input, Modal, PlatformIcon, ProgressBar, ScoreBadge, Segmented, cx, fmtDate } from "../components/ui";
 import { useStore } from "../store";
-import type { Publication, PubStatus } from "../types";
+import type { Campaign, Publication, PubStatus } from "../types";
 
 const STATUS: Record<PubStatus, { label: string; color: "gray" | "violet" | "green" | "red" | "amber" | "blue" }> = {
   scheduled: { label: "En attente", color: "blue" },
@@ -36,10 +36,16 @@ export function PublishingPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Publier</h1>
+        <p className="mt-1 text-sm text-ink-300">Choisis combien de clips publier sur chaque compte : Live Clipper prend automatiquement les meilleurs clips et les publie au rythme réglé sur chaque compte.</p>
+      </header>
+      <NewCampaign />
+      <Campaigns />
+      <div className="flex flex-wrap items-end justify-between gap-4 pt-2">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Publication</h1>
-          <p className="mt-1 text-sm text-ink-300">Posts programmés, publiés et en échec, compte par compte.</p>
+          <h2 className="text-lg font-semibold">File de publication et historique</h2>
+          <p className="mt-0.5 text-sm text-ink-300">Posts programmés, publiés et en échec, compte par compte.</p>
         </div>
         <Segmented
           value={view}
@@ -49,7 +55,7 @@ export function PublishingPage() {
             { value: "calendar", label: <><CalendarDays className="size-3.5" /> Calendrier</> },
           ]}
         />
-      </header>
+      </div>
       <div className="flex flex-wrap items-center gap-3">
         <Segmented
           value={filter}
@@ -255,5 +261,167 @@ function Calendar({ pubs }: { pubs: Publication[] }) {
         </Modal>
       )}
     </Card>
+  );
+}
+
+// ------------------------------------------------------------------ campagnes « N clips par compte »
+const PRESETS = [10, 50, 100];
+
+function NewCampaign() {
+  const accounts = useStore((s) => s.accounts);
+  const clips = useStore((s) => s.clips);
+  const toast = useStore((s) => s.toast);
+  const setTab = useStore((s) => s.setTab);
+  const [count, setCount] = useState<number>(10);
+  const [custom, setCustom] = useState("");
+  const [selected, setSelected] = useState<number[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const chosen = selected ?? accounts.filter((a) => a.status === "connected").map((a) => a.id);
+  const n = custom ? Math.max(0, parseInt(custom) || 0) : count;
+  const stock = clips.filter((c) => c.status !== "rejected").length;
+  const needed = n * chosen.length;
+  const maxDays = Math.max(0, ...accounts.filter((a) => chosen.includes(a.id)).map((a) => Math.ceil(n / Math.max(1, a.max_per_day))));
+
+  async function start() {
+    setBusy(true);
+    try {
+      const r = await api.post<Campaign & { warning?: string }>("/api/campaigns", { count: n, account_ids: chosen });
+      toast(`Publication lancée : ${n} clips sur ${chosen.length} compte(s)`, "success");
+      if (r.warning) toast(r.warning, "warning");
+      useStore.getState().loadCampaigns();
+      useStore.getState().loadPublications();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!accounts.length)
+    return (
+      <Empty icon={<Send className="size-6" />} title="Aucun compte connecté">
+        <button className="text-brand-400 hover:underline cursor-pointer" onClick={() => setTab("accounts")}>
+          Connecte d'abord tes comptes
+        </button>{" "}
+        dans l'onglet Comptes.
+      </Empty>
+    );
+
+  return (
+    <Card className="relative overflow-hidden p-6">
+      <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-pink-500/10 blur-3xl" />
+      <div className="relative grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <div>
+          <p className="mb-2 text-xs font-medium tracking-wide text-ink-300 uppercase">Nombre de clips par compte</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {PRESETS.map((p) => (
+              <button
+                key={p}
+                onClick={() => {
+                  setCount(p);
+                  setCustom("");
+                }}
+                className={cx(
+                  "h-14 w-24 rounded-xl border text-lg font-semibold transition cursor-pointer",
+                  !custom && count === p ? "border-brand-500 bg-brand-500/15 text-white" : "border-ink-600 text-ink-200 hover:border-ink-500",
+                )}
+              >
+                {p}
+                <span className="block text-[10px] font-normal text-ink-400">clips</span>
+              </button>
+            ))}
+            <div className="w-28">
+              <Input type="number" min={1} max={1000} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Autre" className="h-14 text-center text-lg" />
+            </div>
+          </div>
+          <div className="mt-5 space-y-1.5 text-sm text-ink-300">
+            <p>
+              <b className="text-ink-100">{n * chosen.length}</b> publications au total ({n} × {chosen.length} compte{chosen.length > 1 ? "s" : ""}).
+            </p>
+            {maxDays > 0 && <p>Durée estimée : environ <b className="text-ink-100">{maxDays} jour{maxDays > 1 ? "s" : ""}</b> selon le nombre de posts par jour de chaque compte.</p>}
+            <p>
+              Clips disponibles : <b className="text-ink-100">{stock}</b>
+              {needed > stock && (
+                <span className="text-amber-300">
+                  {" "}
+                  — chaque compte reçoit des clips différents tant que possible, puis les clips sont réutilisés. Ajoute des lives pour en avoir plus.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-medium tracking-wide text-ink-300 uppercase">Comptes</p>
+          <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+            {accounts.map((a) => {
+              const on = chosen.includes(a.id);
+              return (
+                <label key={a.id} className={cx("flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition", on ? "border-brand-500/60 bg-brand-500/10" : "border-ink-700 hover:border-ink-500")}>
+                  <input type="checkbox" className="size-4 accent-brand-500" checked={on} onChange={(e) => setSelected(e.target.checked ? [...chosen, a.id] : chosen.filter((x) => x !== a.id))} />
+                  <PlatformIcon platform={a.platform} />
+                  <span className="flex-1 truncate text-sm">{a.name}</span>
+                  <span className="text-[11px] text-ink-400">{a.max_per_day}/jour</span>
+                  {a.status !== "connected" && (
+                    <Badge color="amber">
+                      <AlertTriangle className="size-3" /> à connecter
+                    </Badge>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <Button variant="primary" size="lg" className="mt-4 w-full" icon={<Rocket className="size-4" />} loading={busy} disabled={!n || !chosen.length} onClick={start}>
+            Publier {n} clips sur {chosen.length} compte{chosen.length > 1 ? "s" : ""}
+          </Button>
+          <p className="mt-2 text-xs text-ink-400">Automatique : les meilleurs clips (score IA) sont publiés sans validation. Rejette un clip dans l'onglet Lives pour l'exclure.</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function Campaigns() {
+  const campaigns = useStore((s) => s.campaigns);
+  const toast = useStore((s) => s.toast);
+  if (!campaigns.length) return null;
+  return (
+    <div className="space-y-3">
+      {campaigns.slice(0, 10).map((c) => (
+        <Card key={c.id} className="p-4">
+          <div className="flex items-center gap-3">
+            {c.status === "active" ? <Badge color="violet">En cours</Badge> : c.status === "done" ? <Badge color="green"><Check className="size-3" /> Terminée</Badge> : <Badge>Arrêtée</Badge>}
+            <span className="font-medium">
+              {c.count} clips par compte · {c.accounts.length} compte{c.accounts.length > 1 ? "s" : ""}
+            </span>
+            <span className="text-xs text-ink-400">lancée le {fmtDate(c.created_at)}</span>
+            <span className="ml-auto text-sm tabular-nums text-ink-300">
+              {c.published_total} / {c.count * c.accounts.length} publiés
+            </span>
+            {c.status === "active" ? (
+              <Button size="sm" variant="ghost" icon={<Ban className="size-3.5" />} onClick={() => api.post(`/api/campaigns/${c.id}/cancel`).catch((e) => toast(e.message, "error"))}>
+                Arrêter
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" aria-label="Supprimer" icon={<Trash2 className="size-3.5" />} onClick={() => api.del(`/api/campaigns/${c.id}`).then(() => useStore.getState().loadCampaigns()).catch((e) => toast(e.message, "error"))} />
+            )}
+          </div>
+          <ProgressBar value={c.progress} active={c.status === "active"} className="mt-3" />
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {c.accounts.map((a) => (
+              <div key={a.account_id} className="flex items-center gap-2 rounded-lg bg-ink-900/60 px-3 py-2 text-xs">
+                <PlatformIcon platform={a.platform} className="size-3.5" />
+                <span className="flex-1 truncate text-ink-200">{a.name}</span>
+                {!a.connected && c.status === "active" && <AlertTriangle className="size-3.5 text-amber-300" />}
+                <span className="tabular-nums text-ink-300">
+                  <b className="text-ink-100">{a.published}</b>/{a.target}
+                  {a.scheduled > 0 && <span className="text-sky-300"> · {a.scheduled} prévus</span>}
+                  {a.failed > 0 && <span className="text-red-300"> · {a.failed} échec</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ))}
+    </div>
   );
 }

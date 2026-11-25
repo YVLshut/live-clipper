@@ -81,7 +81,8 @@ _PCT = re.compile(r"LCPROG\s+([\d.]+)%")
 
 
 def download(url: str, work: Path, section: str | None = None,
-             progress: Progress = noop_progress, cancel: CancelCheck = never_cancel) -> tuple[Path, dict]:
+             progress: Progress = noop_progress, cancel: CancelCheck = never_cancel,
+             info: dict | None = None) -> tuple[Path, dict]:
     """Télécharge la vidéo, extrait l'audio 16 kHz mono. Renvoie (dossier de travail, source)."""
     url = url.strip()
     if not url:
@@ -94,7 +95,7 @@ def download(url: str, work: Path, section: str | None = None,
         if not re.match(r"https?://", url):
             raise UserError(f"Ce n'est pas un lien valide : {url}")
         p(0.01, "Lecture des informations du live…", force=True)
-        src = source_from_info(probe(url), url)
+        src = source_from_info(info or probe(url), url)
     check(cancel)
     if section:
         src["id"] = safe(f"{src['id']}_{section.replace(':', '').replace('-', '_')}")
@@ -142,3 +143,13 @@ def download(url: str, work: Path, section: str | None = None,
             cancel=cancel)
     p(1.0, "Téléchargement terminé", force=True)
     return d, src
+
+
+def live_stream_url(url: str) -> str:
+    """URL du flux (HLS) d'un live en cours ; lève CalledProcessError si le live n'est plus en direct."""
+    r = subprocess.run([tool("yt-dlp"), "-g", "--no-warnings", "--no-playlist",
+                        "-f", "best[height<=1080]/best", url],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", **NO_WINDOW)
+    if r.returncode or not r.stdout.strip():
+        raise subprocess.CalledProcessError(r.returncode or 1, [tool("yt-dlp"), url], r.stdout, r.stderr)
+    return r.stdout.strip().splitlines()[0]
