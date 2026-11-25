@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 
 from .. import config, db, paths, secrets
-from ..errors import UserError
+from ..errors import Cancelled, UserError
 from ..events import bus
 from ..models import Clip, Source
 from ..pipeline import download, highlights, peaks, render, transcribe
@@ -67,6 +67,9 @@ def save_source(src: dict, d: Path, total: float) -> Source:
 
 def run(ctx: JobContext) -> None:
     job = ctx.job()
+    from .streams import stream_enabled
+    if not stream_enabled(job.stream_id):
+        raise Cancelled()   # œil barré dans « Mes lives »
     opts = job.options or {}
     cfg = effective_config(opts)
     section = normalize_section(opts.get("section"))
@@ -97,6 +100,9 @@ def run(ctx: JobContext) -> None:
         raise UserError("La vidéo téléchargée est vide ou illisible.")
     source = save_source(src, d, total)
     ctx.update(source_id=source.id)
+    if not live_src:
+        from .streams import update_stream_meta
+        update_stream_meta(job.stream_id, src)
 
     # 2. Transcription
     ctx.step("transcribe", 0, "Transcription…")

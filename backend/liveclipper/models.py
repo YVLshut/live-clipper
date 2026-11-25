@@ -47,6 +47,7 @@ class Job(SQLModel, table=True):
     clip_id: Optional[str] = None
     clips_count: int = 0
     extra: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))  # live : durée enregistrée, tranches
+    stream_id: Optional[int] = Field(default=None, index=True)   # live de la liste « Mes lives »
     created_at: datetime = Field(default_factory=now)
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -122,3 +123,17 @@ class Campaign(SQLModel, table=True):
     status: str = "active"                       # active | done | cancelled
     created_at: datetime = Field(default_factory=now)
     finished_at: Optional[datetime] = None
+
+
+class Stream(SQLModel, table=True):
+    """Un live ajouté dans l'onglet Lives (chaîne surveillée ou rediffusion). L'œil = enabled."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    url: str = Field(index=True)
+    enabled: bool = True
+    author: Optional[str] = None
+    title: Optional[str] = None
+    platform: Optional[str] = None
+    options: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    last_checked: Optional[datetime] = None
+    last_live_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=now)

@@ -26,7 +26,7 @@ def create_app(start_workers: bool = True) -> FastAPI:
     except OSError as e:
         log.warning("Copie de yt-dlp impossible : %s", e)
     from .api import routes_accounts, routes_clips, routes_publications, routes_settings, routes_setup
-    from .services import job_queue, live_manager, start_publishing, stop_publishing
+    from .services import job_queue, live_manager, start_publishing, stop_publishing, stream_watcher
 
     routers = [routes_clips.router, routes_settings.router, routes_accounts.router,
                routes_accounts.oauth_router, routes_publications.router, routes_setup.router]
@@ -38,12 +38,14 @@ def create_app(start_workers: bool = True) -> FastAPI:
         if start_workers:
             job_queue.start()
             live_manager.start()
+            stream_watcher.start()
             start_publishing()
             from .pipeline.transcribe import prewarm
             prewarm()
         log.info("Live Clipper %s démarré (données : %s)", __version__, paths.home())
         yield
         if start_workers:
+            stream_watcher.stop()
             job_queue.stop()
             stop_publishing()
 

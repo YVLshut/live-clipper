@@ -52,6 +52,8 @@ class LiveManager:
 
     def adopt(self, job_id: int, url: str, src: dict, options: dict) -> None:
         """Un job « clip » s'est révélé être un live en direct : il devient un job « live »."""
+        from .streams import update_stream_meta
+        update_stream_meta(JobContext(self.queue, job_id).job().stream_id, src, live=True)
         extra = {"source": src, "recorded": 0.0, "segments": 0, "started": time.time()}
         JobContext(self.queue, job_id).update(kind="live", status="running", step="record", progress=0.0,
                                               source_id=None, extra=extra,
@@ -146,6 +148,10 @@ class LiveManager:
                    job_id=ctx.job_id)
 
     def _submit_segment(self, ctx: JobContext, seg: Path, k: int, src: dict, options: dict, got: float) -> None:
+        from .streams import stream_enabled
+        if not stream_enabled(ctx.job().stream_id):   # œil barré : on ne clippe plus ce live
+            seg.unlink(missing_ok=True)
+            return
         extra = dict(ctx.job().extra or {})
         extra["recorded"] = float(extra.get("recorded", 0)) + got
         extra["segments"] = k + 1
@@ -153,7 +159,7 @@ class LiveManager:
         opts = {key: v for key, v in options.items() if key != "section"}
         opts.update(live_source={kk: vv for kk, vv in src.items() if kk != "is_live"}, segment=k,
                     live_job_id=ctx.job_id)
-        self.queue.submit("clip", url=str(seg), options=opts)
+        self.queue.submit("clip", url=str(seg), options=opts, stream_id=ctx.job().stream_id)
         log.info("Live %s : tranche %s (%.0f s) envoyée au clipping", ctx.job_id, k + 1, got)
 
     @staticmethod

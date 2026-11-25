@@ -103,6 +103,14 @@ Utilise des lives de créateurs qui t'ont donné leur accord.
 - [ ] « Ouvrir le dossier » ouvre l'Explorateur sur les clips.
 - [ ] Paramètres → yt-dlp → **Mettre à jour** : message de succès (ou « déjà à jour »).
 
+### Mes lives (œil)
+- [ ] Chaque lien ajouté apparaît dans « Mes lives » (sans doublon si tu le colles deux fois).
+- [ ] Clique sur l'**œil** d'un live en cours d'enregistrement : il devient barré, l'enregistrement s'arrête et
+      aucune nouvelle tranche n'est clippée. Les clips déjà créés restent.
+- [ ] Rouvre l'œil : le clipping reprend (pour une chaîne en direct, un nouvel enregistrement démarre).
+- [ ] Ajoute une chaîne hors ligne (`https://www.twitch.tv/pseudo`) : « Hors ligne : surveillance ». Quand elle
+      passe en direct, l'enregistrement démarre tout seul dans les 5 minutes (œil ouvert seulement).
+
 ## 6. Comptes — API officielles (Onglet 2)
 
 ### Instagram (Graph API)

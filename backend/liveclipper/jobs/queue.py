@@ -102,9 +102,9 @@ class JobQueue:
 
     # ------------------------------------------------------------ API
     def submit(self, kind: str, url: str | None = None, options: dict | None = None,
-               clip_id: str | None = None) -> Job:
+               clip_id: str | None = None, stream_id: int | None = None) -> Job:
         with db.session() as s:
-            j = Job(kind=kind, url=url, options=options or {}, clip_id=clip_id,
+            j = Job(kind=kind, url=url, options=options or {}, clip_id=clip_id, stream_id=stream_id,
                     message="En attente")
             s.add(j)
             s.commit()

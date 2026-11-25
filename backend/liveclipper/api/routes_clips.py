@@ -59,8 +59,9 @@ def create_jobs(body: JobCreate):
     if "section" in opts:
         opts["section"] = normalize_section(opts["section"])
     unsupported = [u for u in urls if u.startswith("http") and not any(s in u for s in SUPPORTED)]
-    jobs = [job_queue.submit("clip", url=u, options=opts) for u in urls]
-    out = {"jobs": [job_out(j) for j in jobs]}
+    from ..jobs.streams import add_streams
+    streams, jobs = add_streams(urls, opts, job_queue)
+    out = {"jobs": [job_out(j) for j in jobs], "streams": len(streams)}
     if unsupported:
         out["warning"] = ("Plateforme non reconnue pour : " + ", ".join(unsupported)
                           + ". Le téléchargement sera tenté quand même.")
@@ -278,3 +279,33 @@ def clip_video(clip_id: str):
     if not f.exists():
         raise UserError("Fichier vidéo introuvable (supprimé ou déplacé).", status=404)
     return FileResponse(f, media_type="video/mp4", headers={"Cache-Control": "no-cache"})
+
+
+# ------------------------------------------------------------------ « Mes lives » (œil)
+@router.get("/streams")
+def list_streams():
+    from ..jobs.streams import stream_status
+    from ..events import to_jsonable
+    from ..models import Stream
+    with db.session() as s:
+        rows = s.exec(select(Stream).order_by(Stream.created_at.desc())).all()
+    return [{**to_jsonable(r), **stream_status(r)} for r in rows]
+
+
+class StreamPatch(BaseModel):
+    enabled: bool
+
+
+@router.patch("/streams/{stream_id}")
+def patch_stream(stream_id: int, body: StreamPatch):
+    from ..jobs.streams import set_enabled, stream_status
+    from ..events import to_jsonable
+    st = set_enabled(stream_id, body.enabled, job_queue)
+    return {**to_jsonable(st), **stream_status(st)}
+
+
+@router.delete("/streams/{stream_id}")
+def remove_stream(stream_id: int):
+    from ..jobs.streams import delete_stream
+    delete_stream(stream_id, job_queue)
+    return {"ok": True}

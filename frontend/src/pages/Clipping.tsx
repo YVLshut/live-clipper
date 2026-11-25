@@ -6,6 +6,8 @@ import {
   Clapperboard,
   Copy,
   Download,
+  Eye,
+  EyeOff,
   FolderOpen,
   Link2,
   Loader2,
@@ -42,7 +44,7 @@ import {
   fmtDuration,
 } from "../components/ui";
 import { useStore } from "../store";
-import type { Clip, Job, Source } from "../types";
+import type { Clip, Job, Source, Stream } from "../types";
 
 export function ClippingPage() {
   return (
@@ -56,6 +58,7 @@ export function ClippingPage() {
         </p>
       </header>
       <NewJobForm />
+      <StreamsSection />
       <JobsSection />
       <Gallery />
     </div>
@@ -92,7 +95,8 @@ function NewJobForm() {
           section: useSection ? `${secStart}-${secEnd}` : undefined,
         },
       });
-      toast(`${res.jobs.length} live(s) ajouté(s)`, "success");
+      toast(`${(res as { streams?: number }).streams ?? res.jobs.length} live(s) ajouté(s) à « Mes lives »`, "success");
+      useStore.getState().loadStreams();
       if (res.warning) toast(res.warning, "warning");
       setUrls("");
       useStore.getState().loadJobs();
@@ -166,6 +170,101 @@ function NewJobForm() {
         </div>
       </div>
     </Card>
+  );
+}
+
+// ------------------------------------------------------------------ « Mes lives » (œil)
+function StreamsSection() {
+  const streams = useStore((s) => s.streams);
+  if (!streams.length) return null;
+  const on = streams.filter((x) => x.enabled).length;
+  return (
+    <section>
+      <SectionTitle title="Mes lives" subtitle={`${on} live${on > 1 ? "s" : ""} clippé${on > 1 ? "s" : ""} sur ${streams.length}. L'œil coupe ou réactive le clipping d'un live.`} />
+      <Card className="divide-y divide-ink-700 overflow-hidden">
+        {streams.map((st) => (
+          <StreamRow key={st.id} stream={st} />
+        ))}
+      </Card>
+    </section>
+  );
+}
+
+const STATE_STYLE: Record<Stream["state"], string> = {
+  live: "text-red-300",
+  processing: "text-brand-300",
+  watching: "text-ink-300",
+  done: "text-emerald-300",
+  failed: "text-red-300",
+  paused: "text-ink-400",
+};
+
+function StreamRow({ stream: st }: { stream: Stream }) {
+  const toast = useStore((s) => s.toast);
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  async function toggle() {
+    setBusy(true);
+    try {
+      await api.patch(`/api/streams/${st.id}`, { enabled: !st.enabled });
+      await useStore.getState().loadStreams();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className={cx("flex items-center gap-4 px-4 py-3 transition", !st.enabled && "opacity-55")}>
+      <button
+        onClick={toggle}
+        disabled={busy}
+        title={st.enabled ? "Couper le clipping de ce live" : "Réactiver le clipping de ce live"}
+        aria-label={st.enabled ? "Couper le clipping" : "Réactiver le clipping"}
+        className={cx(
+          "flex size-10 shrink-0 items-center justify-center rounded-xl border transition cursor-pointer disabled:opacity-50",
+          st.enabled ? "border-brand-500/40 bg-brand-500/15 text-brand-300 hover:bg-brand-500/25" : "border-ink-600 bg-ink-900 text-ink-400 hover:text-ink-200",
+        )}
+      >
+        {busy ? <Loader2 className="size-5 animate-spin" /> : st.enabled ? <Eye className="size-5" /> : <EyeOff className="size-5" />}
+      </button>
+      <PlatformIcon platform={st.platform || (st.url.includes("twitch") ? "twitch" : st.url.includes("kick") ? "kick" : st.url.includes("youtu") ? "youtube" : "")} className="size-4 shrink-0 text-ink-200" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate font-medium text-ink-100">{st.author || st.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
+          {st.state === "live" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-300">
+              <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> EN DIRECT
+            </span>
+          )}
+          {st.channel && <Badge>Chaîne</Badge>}
+        </div>
+        <div className="truncate text-xs text-ink-400">
+          {st.title ? `${st.title} · ` : ""}
+          <ExtLink href={st.url}>{st.url.replace(/^https?:\/\//, "")}</ExtLink>
+        </div>
+      </div>
+      <div className="hidden w-80 shrink-0 text-right text-xs md:block">
+        <div className={STATE_STYLE[st.state]}>{st.label}</div>
+        <div className="text-ink-400">
+          {st.clips} clip{st.clips > 1 ? "s" : ""}
+          {st.recorded > 0 && ` · ${fmtDuration(st.recorded)} enregistrées`}
+        </div>
+      </div>
+      <Button size="sm" variant="ghost" aria-label="Retirer de la liste" icon={<Trash2 className="size-3.5" />} onClick={() => setConfirm(true)} />
+      <Confirm
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        title="Retirer ce live de la liste ?"
+        message="Le clipping de ce live s'arrête. Les clips déjà créés restent dans la galerie."
+        confirmLabel="Retirer"
+        danger
+        onConfirm={async () => {
+          await api.del(`/api/streams/${st.id}`);
+          await useStore.getState().loadStreams();
+        }}
+      />
+    </div>
   );
 }
 

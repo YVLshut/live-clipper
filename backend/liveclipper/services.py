@@ -4,6 +4,7 @@ from __future__ import annotations
 from .jobs import clip_job
 from .jobs.live import LiveManager
 from .jobs.queue import JobContext, JobQueue
+from .jobs.streams import StreamWatcher
 from .publish import accounts
 from .publish.scheduler import Scheduler
 from .publish.worker import PublishWorker
@@ -21,6 +22,7 @@ HANDLERS = {"clip": clip_job.run, "rerender": _rerender}
 
 job_queue = JobQueue(HANDLERS)
 live_manager = LiveManager(job_queue)
+stream_watcher = StreamWatcher(job_queue)
 publish_worker = PublishWorker()
 scheduler = Scheduler(publish_worker.enqueue_publication, accounts.refresh_all)
 

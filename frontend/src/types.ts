@@ -29,6 +29,7 @@ export interface Job {
   source_id: string | null;
   clip_id: string | null;
   clips_count: number;
+  stream_id: number | null;
   extra: { recorded?: number; segments?: number; started?: number; source?: Partial<Source> } | null;
   created_at: string;
   started_at: string | null;
@@ -185,4 +186,21 @@ export interface Campaign {
   accounts: CampaignAccount[];
   published_total: number;
   progress: number;
+}
+
+export interface Stream {
+  id: number;
+  url: string;
+  enabled: boolean;
+  author: string | null;
+  title: string | null;
+  platform: string | null;
+  last_checked: string | null;
+  last_live_at: string | null;
+  created_at: string;
+  state: "paused" | "live" | "processing" | "watching" | "failed" | "done";
+  label: string;
+  clips: number;
+  channel: boolean;
+  recorded: number;
 }
