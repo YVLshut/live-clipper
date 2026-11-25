@@ -9,7 +9,7 @@ from sqlmodel import Field, SQLModel
 
 
 def now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc)
 
 
 class Setting(SQLModel, table=True):

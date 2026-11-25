@@ -159,7 +159,8 @@ def find_highlights(segs: list[dict], peaks: list[dict], src: dict, n: int, tota
         elif use_ai:
             warnings.append("Repli sur les pics de volume.")
         for p in sorted(peaks, key=lambda p: -p["z"])[:n * 2]:
-            cands.append(snap({"start": max(0, p["t"] - 20), "end": p["t"] + 12,
+            before, after = min(20.0, cfg["max_len"] * 0.6), min(12.0, cfg["max_len"] * 0.4)
+            cands.append(snap({"start": max(0, p["t"] - before), "end": p["t"] + after,
                                "score": round(min(10.0, max(1.0, 5 + p["z"])), 1),
                                "title": f"Moment {hms(p['t'])}", "hook": "", "caption": "",
                                "hashtags": []}, segs, total, cfg))
