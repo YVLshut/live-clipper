@@ -145,8 +145,9 @@ Utilise des lives de créateurs qui t'ont donné leur accord.
 
 ## 8. Publier (Onglet 3)
 
-- [ ] Coche des comptes puis clique sur **10**, **50** ou **100** : une fenêtre de suivi s'ouvre et montre, pour
-      chaque compte, le nombre de clips postés, l'heure du prochain clip et le lien du dernier post.
+- [ ] Chaque compte apparaît dans un carré (avatar, nom, statut) avec une corbeille pour le supprimer.
+- [ ] Clique sur **10**, **50** ou **100** sous un compte : une fenêtre de suivi s'ouvre (clips postés, heure du
+      prochain clip, lien du dernier post) ; le carré affiche ensuite l'avancée, un clic rouvre la fenêtre.
 - [ ] Rythme : 1 clip par heure et par compte (à quelques minutes près), jamais plusieurs d'un coup.
 - [ ] Ferme la fenêtre de suivi : la publication continue ; clique sur la campagne pour la rouvrir.
 - [ ] Les clips programmés sont différents d'un compte à l'autre tant qu'il y en a assez, puis réutilisés.
