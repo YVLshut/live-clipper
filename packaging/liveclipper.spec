@@ -51,9 +51,35 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "IPython", "pytest", "torch", "tensorflow"],
+    # modules natifs optionnels non utilisés (moins de DLL à faire accepter par Windows)
+    excludes=["tkinter", "matplotlib", "IPython", "pytest", "torch", "tensorflow", "PIL", "uvloop",
+              "watchfiles", "httptools", "yaml", "_yaml", "hf_xet", "greenlet"],
     noarchive=False,
 )
+# --- Smart App Control / stratégies de contrôle d'application Windows -----------------------------
+# Windows peut bloquer le chargement de DLL natives non signées (.pyd). SQLAlchemy livre des
+# extensions Cython OPTIONNELLES (*_cy.pyd) dont le code Python pur est fourni à côté (*_cy.py) :
+# on retire les .pyd et on embarque les .py, qui sont chargés à la place (perte de vitesse négligeable).
+import sqlalchemy as _sa
+
+_sa_dir = os.path.dirname(_sa.__file__)
+
+
+def _is_sa_cython(dest: str) -> bool:
+    d = dest.replace("\\", "/")
+    return d.startswith("sqlalchemy/") and "_cy." in d and d.endswith((".pyd", ".so"))
+
+
+_dropped = [b[0] for b in a.binaries if _is_sa_cython(b[0])]
+a.binaries = [b for b in a.binaries if not _is_sa_cython(b[0])]
+for _root, _dirs, _files in os.walk(_sa_dir):
+    for _f in _files:
+        if _f.endswith("_cy.py"):
+            _src = os.path.join(_root, _f)
+            _rel = os.path.relpath(_src, os.path.dirname(_sa_dir))
+            a.datas.append((_rel.replace("\\", "/"), _src, "DATA"))
+print(f"[spec] extensions Cython SQLAlchemy remplacées par du Python pur : {len(_dropped)}")
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

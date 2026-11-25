@@ -70,8 +70,9 @@ def start_server(port: int):
     import uvicorn
     from liveclipper.main import create_app
 
+    # h11 / asyncio : implémentations Python pur (pas de httptools ni uvloop natifs)
     config = uvicorn.Config(create_app(), host="127.0.0.1", port=port, log_config=None,
-                            access_log=False, ws="websockets")
+                            access_log=False, ws="websockets", http="h11", loop="asyncio")
     server = uvicorn.Server(config)
     t = threading.Thread(target=server.run, name="uvicorn", daemon=True)
     t.start()
@@ -96,6 +97,21 @@ def error_box(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+POLICY_MESSAGE = (
+    "Windows a bloqué un composant de Live Clipper (stratégie de contrôle d'application, "
+    "probablement le « Contrôle intelligent des applications »).\n\n"
+    "Les bibliothèques de Live Clipper ne sont pas signées numériquement : ce réglage de Windows les "
+    "refuse.\n\nPour l'autoriser : Sécurité Windows > Contrôle des applications et du navigateur > "
+    "Paramètres du contrôle intelligent des applications > Désactivé.\n\nDétail : {detail}"
+)
+
+
+def blocked_by_policy(e: BaseException) -> bool:
+    msg = str(e).lower()
+    return any(k in msg for k in ("contrôle d", "controle d", "application control", "4551",
+                                  "bloqué ce fichier", "blocked this file"))
+
+
 def main(argv: list[str] | None = None) -> int:
     multiprocessing.freeze_support()
     ap = argparse.ArgumentParser()
@@ -103,8 +119,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--port", type=int, default=None)
     args = ap.parse_args(argv)
 
-    from liveclipper import config, paths
-    from liveclipper.logging_setup import setup_logging
+    try:
+        from liveclipper import config, paths
+        from liveclipper.logging_setup import setup_logging
+        from liveclipper.main import create_app  # noqa: F401  (charge toutes les DLL natives dès maintenant)
+    except ImportError as e:
+        if blocked_by_policy(e):
+            error_box(POLICY_MESSAGE.format(detail=e))
+            return 2
+        raise
     setup_logging()
     paths.setup_dll_dirs()
     os.environ.setdefault("HF_HUB_DISABLE_XET", "1")

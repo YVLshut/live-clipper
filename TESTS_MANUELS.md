@@ -20,6 +20,20 @@ En cas de problème, envoie-moi ce fichier.
 - [ ] Les raccourcis **Bureau** et **menu Démarrer → Live Clipper** existent, avec l'icône violette.
 - [ ] « Lancer Live Clipper » à la fin de l'installation ouvre l'application.
 
+### Si Windows bloque l'application (« Une stratégie de contrôle d'application a bloqué ce fichier »)
+C'est le **Contrôle intelligent des applications** (Smart App Control) de Windows 11 : il refuse les DLL non
+signées numériquement, et celles de Live Clipper (Python, Whisper, numpy…) ne le sont pas.
+- [ ] Vérifie son état : **Sécurité Windows → Contrôle des applications et du navigateur → Paramètres du contrôle
+      intelligent des applications**. S'il est sur « Activé » ou « Évaluation », c'est lui.
+- [ ] Pour lister tous les fichiers bloqués (utile pour moi), dans PowerShell après une tentative de lancement :
+
+```powershell
+Get-WinEvent -LogName 'Microsoft-Windows-CodeIntegrity/Operational' -MaxEvents 300 | Where-Object { $_.Id -in 3033,3034,3076,3077 } | Format-List TimeCreated, Id, Message | Out-File "$env:USERPROFILE\Desktop\blocages-liveclipper.txt"
+```
+
+- [ ] Solutions : soit le passer sur **Désactivé** (attention : selon ta version de Windows, le réactiver peut
+      demander de réinstaller Windows), soit signer l'application avec un certificat de signature de code (voir BUILD.md).
+
 ## 2. Fenêtre native (pywebview)
 
 - [ ] L'application s'ouvre dans **sa propre fenêtre** (titre « Live Clipper », thème sombre), sans navigateur visible

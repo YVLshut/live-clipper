@@ -128,3 +128,15 @@ packaging/                  liveclipper.spec (PyInstaller), installer.iss (Inno 
 tests/                      pytest
 clipper.py                  CLI (même base que l'application)
 ```
+
+## Signature de code (Smart App Control)
+
+Sous Windows 11, le « Contrôle intelligent des applications » bloque les DLL non signées dont il ne connaît pas
+la réputation. Le build limite déjà le nombre de DLL natives (extensions Cython de SQLAlchemy remplacées par leur
+version Python pur, modules natifs optionnels exclus), mais les bibliothèques indispensables (Python, numpy,
+pydantic, ctranslate2/Whisper, PyAV, onnxruntime) restent natives et non signées.
+
+La solution durable est de **signer** `LiveClipper.exe`, toutes les `.dll`/`.pyd` de `dist\LiveClipper` et
+l'installeur avec un certificat de signature de code reconnu (par exemple Azure Trusted Signing, environ 10 $/mois,
+ou un certificat OV/EV d'une autorité de certification), avec `signtool sign /fd SHA256 /tr <horodatage> /td SHA256`
+entre l'étape PyInstaller et l'étape Inno Setup de `build.ps1`.
